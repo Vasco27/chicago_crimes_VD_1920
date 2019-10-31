@@ -1,0 +1,10 @@
+# ignorar ficheiros temporarios do R
+.RData
+.RDataTmp
+.Rhistory
+
+#ignorar python notebook personal settings
+.ipynb_checkpoints/
+
+#ignorar pasta dos datasets
+/datasets/

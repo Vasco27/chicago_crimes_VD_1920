@@ -8,3 +8,4 @@
 
 #ignorar pasta dos datasets
 /datasets/
+.RDataTmp1

@@ -30,6 +30,11 @@ crimes_2005_2007 = files_list$`2005_2007`
 crimes_2008_2011 = files_list$`2008_2011`
 crimes_2012_2017 = files_list$`2012_2017`
 
+sum(duplicated(crimes_2001_2004$ID))
+sum(duplicated(crimes_2001_2004$Case_Number))
+View(crimes_2001_2004)
+
+
 #remover variavel pesada (1.8Gb)
 rm(files_list)
 
@@ -136,3 +141,12 @@ View(complete_sample)
 cols_to_rm = c(1:2, 4:5, 11, 13:17, 19:22)
 complete_sample = get_complete_sample(files.read = TRUE, cols_to_rm = cols_to_rm, irrelevant.perc = 0)
 View(complete_sample)
+
+length(unique(crimes_2001_2004$Beat))
+length(unique(crimes_2005_2007$Beat))
+length(unique(crimes_2008_2011$Beat))
+length(unique(crimes_2012_2017$Beat))
+length(unique(crimes_2012_2017$District))
+
+
+nrow(complete_sample)

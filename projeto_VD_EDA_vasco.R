@@ -244,7 +244,7 @@ pal <- colorBin(
 beat_locations = sample_pop[-c(1:7, 12:20)]
 beat_locations = beat_locations %>%
   group_by(Beat) %>%
-  filter(Year == 2009) %>%
+  filter(Year == 2016) %>%
   add_tally(name = "N.crimes") %>%
   filter(row_number(Beat) == 1)
 View(beat_locations)
@@ -288,7 +288,7 @@ leaflet(c.areas) %>%
 
 
 
-#Mapa das beats-------
+#Manipulação de dados para o mapa das beats-------
 #Densidade de crimes por beat (para 2016 ou 2009), fazer escala com a area do shapefile (mapa)
 #Estudar uma beat em especifico (beat com maior número de crimes ou pior em termos de densidade)
 #Em que CA se encontra a beat?
@@ -319,31 +319,42 @@ b.areas$crime_count = n_crimes_list
 
 length(b.areas[is.na(b.areas$crime_count), ])
 
+n_crimes_list
+#Densidade de crimes por beat
+beat.density = list()
+for(i in 1:length(b.areas$beat_num)) {
+  beat.density[[i]] = n_crimes_list[i] / (b.areas@polygons[[i]]@area * 10000)
+}
+beat.density = as.numeric(as.character(beat.density))
+max(beat.density[!is.na(beat.density)])
+
+#Mapa beats-----------------
+
 #CORRER A PARTIR DAQUI SEMPRE QUE FOR A PRIMEIRA VEZ QUE SE CORRE O MAPA
 #Display para quando se da hover nos beats
 labels <- sprintf(
-  "<strong>Beat num: %s</strong><br/>Quantidade de crimes: %g",
-  b.areas$beat_num, b.areas$crime_count
+  "<strong>Beat num: %s</strong><br/>Densidade de crimes: %g",
+  b.areas$beat_num, beat.density
 ) %>% lapply(htmltools::HTML)
 
 #Pallete para o total de crimes
-bins = c(0, 100, 200, 300, 400, 500, 600)
+bins = c(0, 100, 200, 300, 500, 1000, 2000, 5000)
 pal <- colorBin(
   palette = "YlOrRd",
-  domain = b.areas$crime_count,
+  domain = beat.density,
   bins = bins)
 
 
 #Mapa
 beats.map = leaflet(b.areas) %>%
   
-  addControl("<h3>Crimes por beat em 2016</h3>", position = "topleft") %>%
+  addControl("<h3>Densidade de crimes por beat em 2016</h3>", position = "topleft") %>%
   
-  addPolygons(color = ~pal(crime_count), weight = 1, smoothFactor = 0.5,
+  addPolygons(color = pal(beat.density), weight = 1, smoothFactor = 0.5,
               opacity = 1.0, fillOpacity = 0.5, label = labels,
               highlightOptions = highlightOptions(color = "red", weight = 2)) %>%
   
-  addLegend(pal = pal, values = ~crime_count, opacity = 0.7, title = "Total de crimes",
+  addLegend(pal = pal, values = beat.density, opacity = 0.7, title = "Densidade de crimes em crimes/unidade de area",
             position = "bottomright")
 
 beats.map
@@ -356,9 +367,10 @@ ui <- bootstrapPage(
   tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
   leafletOutput("beatsmap", width = "100%", height = "100%"),
   absolutePanel(top = 10, right = 10,
-  selectInput("year", "Crime year",
+  selectInput("year", "Ano",
               c(2016, 2009)
-  )
+  ),
+  selectInput("type", "Tipo de dados", list("Total de crimes" = "crime", "Densidade de crimes" = "density"))
   )
 )
 
@@ -367,6 +379,9 @@ ui <- bootstrapPage(
 server <- function(input, output, session) {
   input_year = reactive({
     input$year
+  })
+  input_type = reactive({
+    input$type
   })
   
   beat_loc <- reactive({
@@ -380,9 +395,7 @@ server <- function(input, output, session) {
     filter(row_number(Beat) == 1)
   })
   
-  reactive({print(beat_loc())})
-  
-  b.shape = reactive({
+  n.crimes = reactive({
     beat_locations = beat_loc()
     n_crimes_list = list()
     for(i in 1:length(b.areas$beat_num)) {
@@ -391,27 +404,57 @@ server <- function(input, output, session) {
     }
     #Introduzir Nas por coação
     n_crimes_list = as.numeric(as.character(n_crimes_list))
-    b.areas$crime_count = n_crimes_list
+    n_crimes_list
+  })
+  
+  b.shape = reactive({
+    b.areas$crime_count = n.crimes()
     b.areas
+  })
+  
+  beat_density = reactive({
+    n_crimes_list = n.crimes()
+    beat.density = list()
+    for(i in 1:length(b.areas$beat_num)) {
+      beat.density[[i]] = n_crimes_list[i] / (b.areas@polygons[[i]]@area * 10000)
+    }
+    beat.density = as.numeric(as.character(beat.density))
+    beat.density
   })
   
   
   labs = reactive({
     b.areas = b.shape()
-    sprintf(
-    "<strong>Beat num: %s</strong><br/>Quantidade de crimes: %g",
-    b.areas$beat_num, b.areas$crime_count
-    ) %>% lapply(htmltools::HTML)
+    beat.density = beat_density()
+    if(input_type == "crime") {
+      sprintf(
+        "<strong>Beat num: %s</strong><br/>Quantidade de crimes: %g",
+        b.areas$beat_num, b.areas$crime_count
+      ) %>% lapply(htmltools::HTML) 
+    } else if(input_type == "density") {
+      sprintf(
+        "<strong>Beat num: %s</strong><br/>Densidade de crimes: %g",
+        b.areas$beat_num, beat.density
+      ) %>% lapply(htmltools::HTML) 
+    }
   })
   
   #Pallete para o total de crimes
   pallete = reactive({
-    b.areas = b.shape()
-    bins = c(0, 100, 200, 300, 400, 500, 600, 1000)
-    colorBin(
-      palette = "YlOrRd",
-      domain = b.areas$crime_count,
-      bins = bins)
+    if(input_type == "crime") {
+      b.areas = b.shape()
+      bins = c(0, 100, 200, 300, 400, 500, 600, 1000)
+      colorBin(
+        palette = "YlOrRd",
+        domain = b.areas$crime_count,
+        bins = bins)  
+    } else if(input_type == "density") {
+      bins = c(0, 100, 200, 300, 500, 1000, 2000, 5000)
+      pal <- colorBin(
+        palette = "YlOrRd",
+        domain = beat_density(),
+        bins = bins)
+    }
   })
   
   

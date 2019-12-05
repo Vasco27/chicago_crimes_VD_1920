@@ -11,6 +11,7 @@ libraries <- function() {
   library(RColorBrewer) #Palletes de cores
   library(htmlwidgets)
   library(htmltools) #Para usar elementos html
+  library(stringi) #Regex
 }
 read_files <- function() {
   
@@ -243,11 +244,12 @@ pal <- colorBin(
 beat_locations = sample_pop[-c(1:7, 12:20)]
 beat_locations = beat_locations %>%
   group_by(Beat) %>%
-  filter(Year == 2016) %>%
+  filter(Year == 2009) %>%
   add_tally(name = "N.crimes") %>%
   filter(row_number(Beat) == 1)
 View(beat_locations)
 
+nrow(beat_locations)
 
 #Correção de nomes
 chicago_se_index$CA.name[18] = tolower(c.areas$community[18])
@@ -255,16 +257,13 @@ chicago_se_index$CA.name[73] = tolower(c.areas$community[72])
 chicago_se_index$CA.name[76] = tolower(c.areas$community[75])
 
 #organizar populacao conforme shapefile
-pop_list = vector(mode = "list", length = length(c.areas$community))
+pop_list = c()
 for(i in 1:length(c.areas$community)) {
-  pop_list[[i]] = chicago_se_index[tolower(chicago_se_index$CA.name) == tolower(c.areas$community[i]), ]$Population
+  pop_list[i] = chicago_se_index[tolower(chicago_se_index$CA.name) == tolower(c.areas$community[i]), ]$Population
 }
-
-pop_list = unlist(pop_list)
-pop_list
-
 c.areas$population = pop_list
 
+#Hover action para os poligonos
 labels <- sprintf(
   "<strong>%s</strong><br/>total population: %g",
   c.areas$community, c.areas$population
@@ -278,7 +277,7 @@ leaflet(c.areas) %>%
   addPolygons(color = ~pal(population), weight = 1, smoothFactor = 0.5,
               opacity = 1.0, fillOpacity = 0.5,
               label = labels,
-              highlightOptions = highlightOptions(color = "white", weight = 1)) %>%
+              highlightOptions = highlightOptions(color = "red", weight = 3)) %>%
   
   addLegend(pal = pal, values = ~population, opacity = 0.7, title = "Total da população",
             position = "bottomright") %>%
@@ -299,5 +298,139 @@ leaflet(c.areas) %>%
 #Estudar evolução temporal destes estudos (os feriados sao sempre maus? as coisas pioraram com a crise?) Esta evolução pode ser demonstrada num mapa com glyphs, por exemplo setas para cima que indiquem aumento de algo.
 #Comparação entre esta beat e uma beat representativa da média
 
+#Podemos fazer o mapa apenas da beat mais relevante e estudar os locais onde ha mais crimes (fazer uma divisão da beat para prevenir a sobrecarga)
+
+
+display.brewer.all()
+
 b.areas = readOGR("mapas/Beats/geo_export_e80401d7-e6f8-4d20-8da4-b699365275e5.shp")
-length(b.areas$beat_num)
+
+
+#Lista de qauntidades crimes ordenados por beat para o shapefile, para 2016
+n_crimes_list = list()
+n_crimes_list
+for(i in 1:length(b.areas$beat_num)) {
+  n_crimes_list[[i]] <- beat_locations[beat_locations$Beat == 
+        as.integer(stri_replace_first_regex(b.areas$beat_num[i], "0*(\\d+)", "$1")), ]$N.crimes
+}
+#Introduzir Nas por coação
+n_crimes_list = as.numeric(as.character(n_crimes_list))
+b.areas$crime_count = n_crimes_list
+
+length(b.areas[is.na(b.areas$crime_count), ])
+
+#CORRER A PARTIR DAQUI SEMPRE QUE FOR A PRIMEIRA VEZ QUE SE CORRE O MAPA
+#Display para quando se da hover nos beats
+labels <- sprintf(
+  "<strong>Beat num: %s</strong><br/>Quantidade de crimes: %g",
+  b.areas$beat_num, b.areas$crime_count
+) %>% lapply(htmltools::HTML)
+
+#Pallete para o total de crimes
+bins = c(0, 100, 200, 300, 400, 500, 600)
+pal <- colorBin(
+  palette = "YlOrRd",
+  domain = b.areas$crime_count,
+  bins = bins)
+
+
+#Mapa
+beats.map = leaflet(b.areas) %>%
+  
+  addControl("<h3>Crimes por beat em 2016</h3>", position = "topleft") %>%
+  
+  addPolygons(color = ~pal(crime_count), weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.5, label = labels,
+              highlightOptions = highlightOptions(color = "red", weight = 2)) %>%
+  
+  addLegend(pal = pal, values = ~crime_count, opacity = 0.7, title = "Total de crimes",
+            position = "bottomright")
+
+beats.map
+
+
+
+#Shiny app-------------
+#UI
+ui <- bootstrapPage(
+  tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
+  leafletOutput("beatsmap", width = "100%", height = "100%"),
+  absolutePanel(top = 10, right = 10,
+  selectInput("year", "Crime year",
+              c(2016, 2009)
+  )
+  )
+)
+
+
+#Server
+server <- function(input, output, session) {
+  input_year = reactive({
+    input$year
+  })
+  
+  beat_loc <- reactive({
+    year = input_year()
+    beat_locations = sample_pop[-c(1:7, 12:20)]
+    
+    beat_locations %>%
+    group_by(Beat) %>%
+    filter(Year == year) %>%
+    add_tally(name = "N.crimes") %>%
+    filter(row_number(Beat) == 1)
+  })
+  
+  reactive({print(beat_loc())})
+  
+  b.shape = reactive({
+    beat_locations = beat_loc()
+    n_crimes_list = list()
+    for(i in 1:length(b.areas$beat_num)) {
+      n_crimes_list[[i]] <- beat_locations[beat_locations$Beat == 
+                    as.integer(stri_replace_first_regex(b.areas$beat_num[i], "0*(\\d+)", "$1")), ]$N.crimes
+    }
+    #Introduzir Nas por coação
+    n_crimes_list = as.numeric(as.character(n_crimes_list))
+    b.areas$crime_count = n_crimes_list
+    b.areas
+  })
+  
+  
+  labs = reactive({
+    b.areas = b.shape()
+    sprintf(
+    "<strong>Beat num: %s</strong><br/>Quantidade de crimes: %g",
+    b.areas$beat_num, b.areas$crime_count
+    ) %>% lapply(htmltools::HTML)
+  })
+  
+  #Pallete para o total de crimes
+  pallete = reactive({
+    b.areas = b.shape()
+    bins = c(0, 100, 200, 300, 400, 500, 600, 1000)
+    colorBin(
+      palette = "YlOrRd",
+      domain = b.areas$crime_count,
+      bins = bins)
+  })
+  
+  
+  output$beatsmap <- renderLeaflet({
+    year = input_year()
+    pal = pallete()
+    labels = labs()
+    b.areas = b.shape()
+    leaflet(b.areas) %>%
+      
+      addControl(sprintf("<h3>Crimes por beat em %s</h3>", year) %>% lapply(htmltools::HTML), position = "topleft") %>%
+      
+      addPolygons(color = ~pal(crime_count), weight = 1, smoothFactor = 0.5,
+                  opacity = 1.0, fillOpacity = 0.5, label = labels,
+                  highlightOptions = highlightOptions(color = "red", weight = 2)) %>%
+      
+      addLegend(pal = pal, values = ~crime_count, opacity = 0.7, title = "Total de crimes",
+                position = "bottomright")
+  })
+}
+
+shinyApp(ui, server)

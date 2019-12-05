@@ -227,7 +227,13 @@ sample_pop = sample_pop[complete.cases(sample_pop[, "Community_Area"]), ]
 View(head(sample_pop))
 
 
-#Mapa de community_areas--------
+#Mapa de community_areas--------------
+#ESTUDO DE COMMUNITY AREAS
+#Ver as várias variáveis, por exemplo, o harship index,etc.
+#Densidade populacional
+#Densidade de crimes por população (crimes por 10000 habitantes p.e.)
+#Safety de cada CA
+
 c.areas = readOGR("mapas/CA/geo_export_980e6813-e98b-47fa-9ed8-b8eb75ae851d.shp")
 
 #para mostrar todas as palletes
@@ -244,7 +250,7 @@ pal <- colorBin(
 beat_locations = sample_pop[-c(1:7, 12:20)]
 beat_locations = beat_locations %>%
   group_by(Beat) %>%
-  filter(Year == 2016) %>%
+  filter(Year == 2009) %>%
   add_tally(name = "N.crimes") %>%
   filter(row_number(Beat) == 1)
 View(beat_locations)
@@ -326,6 +332,7 @@ for(i in 1:length(b.areas$beat_num)) {
   beat.density[[i]] = n_crimes_list[i] / (b.areas@polygons[[i]]@area * 10000)
 }
 beat.density = as.numeric(as.character(beat.density))
+beat.density
 max(beat.density[!is.na(beat.density)])
 
 #Mapa beats-----------------
@@ -407,10 +414,6 @@ server <- function(input, output, session) {
     n_crimes_list
   })
   
-  b.shape = reactive({
-    b.areas$crime_count = n.crimes()
-    b.areas
-  })
   
   beat_density = reactive({
     n_crimes_list = n.crimes()
@@ -423,32 +426,45 @@ server <- function(input, output, session) {
   })
   
   
+  b.shape = reactive({
+    type = input_type()
+    if(type == "crime") {
+      b.areas$var = n.crimes()
+      b.areas
+    } else if(type == "density") {
+      b.areas$var = beat_density()
+      b.areas
+    }
+  })
+  
+  
   labs = reactive({
     b.areas = b.shape()
-    beat.density = beat_density()
-    if(input_type == "crime") {
+    type = input_type()
+    if(type == "crime") {
       sprintf(
         "<strong>Beat num: %s</strong><br/>Quantidade de crimes: %g",
-        b.areas$beat_num, b.areas$crime_count
+        b.areas$beat_num, b.areas$var
       ) %>% lapply(htmltools::HTML) 
-    } else if(input_type == "density") {
+    } else if(type == "density") {
       sprintf(
         "<strong>Beat num: %s</strong><br/>Densidade de crimes: %g",
-        b.areas$beat_num, beat.density
+        b.areas$beat_num, b.areas$var
       ) %>% lapply(htmltools::HTML) 
     }
   })
   
   #Pallete para o total de crimes
   pallete = reactive({
-    if(input_type == "crime") {
+    type = input_type()
+    if(type == "crime") {
       b.areas = b.shape()
       bins = c(0, 100, 200, 300, 400, 500, 600, 1000)
       colorBin(
         palette = "YlOrRd",
         domain = b.areas$crime_count,
         bins = bins)  
-    } else if(input_type == "density") {
+    } else if(type == "density") {
       bins = c(0, 100, 200, 300, 500, 1000, 2000, 5000)
       pal <- colorBin(
         palette = "YlOrRd",
@@ -458,20 +474,40 @@ server <- function(input, output, session) {
   })
   
   
-  output$beatsmap <- renderLeaflet({
+  title = reactive({
     year = input_year()
+    type = input_type()
+    if(type == "crime") {
+      sprintf("<h3>Crimes por beat em %s</h3>", year) %>% lapply(htmltools::HTML)
+    }else if(type == "density") {
+      sprintf("<h3>Densidade de crimes por beat em %s</h3>", year) %>% lapply(htmltools::HTML)
+    }
+  })
+  
+  
+  legend_title = reactive({
+    type = input_type()
+    if(type == "crime") {
+      sprintf("Total de crimes")
+    } else if(type == "density") {
+      sprintf("Densidade de crimes por área")
+    }
+  })
+  
+  
+  output$beatsmap <- renderLeaflet({
     pal = pallete()
     labels = labs()
     b.areas = b.shape()
     leaflet(b.areas) %>%
       
-      addControl(sprintf("<h3>Crimes por beat em %s</h3>", year) %>% lapply(htmltools::HTML), position = "topleft") %>%
+      addControl(title(), position = "topleft") %>%
       
-      addPolygons(color = ~pal(crime_count), weight = 1, smoothFactor = 0.5,
+      addPolygons(color = ~pal(var), weight = 1, smoothFactor = 0.5,
                   opacity = 1.0, fillOpacity = 0.5, label = labels,
                   highlightOptions = highlightOptions(color = "red", weight = 2)) %>%
       
-      addLegend(pal = pal, values = ~crime_count, opacity = 0.7, title = "Total de crimes",
+      addLegend(pal = pal, values = ~var, opacity = 0.7, title = legend_title(),
                 position = "bottomright")
   })
 }

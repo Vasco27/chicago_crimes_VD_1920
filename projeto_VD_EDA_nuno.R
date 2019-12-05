@@ -355,6 +355,53 @@ CHIT<-sum(beats_2016$CHI)    #THIS IS THE TOTAL CHI FOR THE SUB-SAMPLE
 
 #------------------------------------------------SAFETY FUNCTION-----------------------------------------------
 
+safe<-beats_2016 %>%
+     group_by(Community_Area) %>%
+          tally()
+
+
+pop_list_s = vector(mode = "list", length = length(c.areas$community))
+for(i in 1:length(c.areas$community)) {
+  pop_list_s[[i]] = chicago_se_index[(safe$Community_Area) == (c.areas$area_numbe[i]), ]$Population
+}
+
+pop_list_s = unlist(pop_list_s)
+
+c.areas$safety<- 
+
+labels <- sprintf(
+  "<strong>%s</strong><br/>total population: %g",
+  c.areas$community, c.areas$population
+) %>% lapply(htmltools::HTML)
+
+#O titulo é opcional, provavelmente nao vai ser usado. Pode ser adicionado no shiny ou mesmo no notebook
+leaflet(c.areas) %>% 
+
+  
+  addPolygons(color = ~pal(population), weight = 1, smoothFactor = 0.5,
+              opacity = 1.0, fillOpacity = 0.5,
+              label = labels,
+              highlightOptions = highlightOptions(color = "white", weight = 1)) %>%
+  
+  addLegend(pal = pal, values = ~population, opacity = 0.7, title = "Total da população",
+            position = "bottomright") %>%
+  
+  addCircles(data = beat_locations, lng = ~Longitude, lat = ~Latitude, weight = 1, radius = ~N.crimes, popup = ~factor(Beat),
+             highlightOptions = highlightOptions(color = "blue", weight = 2,
+                                                 bringToFront = TRUE))
+
+
+
+
+
+
+
+
+
+
+
+#---------------------------------------------------------------------------------------
+
 radar1<-beats_2016 %>%
    group_by(month(Date)) %>%
        tally(CHI)
@@ -379,6 +426,18 @@ p + geom_bar(stat="identity") +
   theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) + 
   labs(title = "Safety in Chicago (2016)") +
   annotate("text", x=as.Date("2016-06-01"), y=14, label=("monthly average"),alpha=0.3,fontface =1)
+
+#---------------------------------SAFETY MAP----------------------------------
+
+
+
+
+
+
+
+
+
+
 
 #---------------------------------------------------GET AREA------------------------------------------------------
 

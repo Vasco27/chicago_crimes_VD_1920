@@ -227,7 +227,7 @@ sample_pop = sample_pop[complete.cases(sample_pop[, "Community_Area"]), ]
 View(head(sample_pop))
 
 
-#Mapa de community_areas--------------
+#Mapa de community_areas (Area de testes)--------------
 #ESTUDO DE COMMUNITY AREAS
 #Ver as várias variáveis, por exemplo, o harship index,etc.
 #Densidade populacional
@@ -254,20 +254,22 @@ beat_locations = beat_locations %>%
   add_tally(name = "N.crimes") %>%
   filter(row_number(Beat) == 1)
 View(beat_locations)
-
 nrow(beat_locations)
 
-#Correção de nomes
-chicago_se_index$CA.name[18] = tolower(c.areas$community[18])
-chicago_se_index$CA.name[73] = tolower(c.areas$community[72])
-chicago_se_index$CA.name[76] = tolower(c.areas$community[75])
 
 #organizar populacao conforme shapefile
 pop_list = c()
 for(i in 1:length(c.areas$community)) {
-  pop_list[i] = chicago_se_index[tolower(chicago_se_index$CA.name) == tolower(c.areas$community[i]), ]$Population
+  pop_list[i] = chicago_se_index[chicago_se_index$CA.number == c.areas$area_numbe[i], ]$Population
 }
 c.areas$population = pop_list
+
+ca.density = c()
+for(i in 1:length(c.areas$community)) {
+  ca.density[i] = pop_list[i] / (c.areas@polygons[[i]]@area *10000)
+}
+ca.density
+
 
 #Hover action para os poligonos
 labels <- sprintf(
@@ -335,7 +337,7 @@ beat.density = as.numeric(as.character(beat.density))
 beat.density
 max(beat.density[!is.na(beat.density)])
 
-#Mapa beats-----------------
+#Mapa beats (Area de testes)-----------------
 
 #CORRER A PARTIR DAQUI SEMPRE QUE FOR A PRIMEIRA VEZ QUE SE CORRE O MAPA
 #Display para quando se da hover nos beats
@@ -368,7 +370,7 @@ beats.map
 
 
 
-#Shiny app-------------
+#Shiny app para o mapa das beats-------------
 #UI
 ui <- bootstrapPage(
   tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
@@ -513,3 +515,159 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+
+
+
+
+#Shiny app para o mapa das CA-----------------
+
+
+ui <- bootstrapPage(
+  tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
+  leafletOutput("ca.map", width = "100%", height = "100%"),
+  absolutePanel(top = 10, right = 10,
+  selectInput("year", "Ano",
+              c(2016, 2009)
+  ),
+  selectInput("type", "Tipo de dados", 
+              list("População" = "pop", "Densidade populacional" = "pop.density")
+  ),
+  checkboxInput("show.beats", "Show beats", TRUE)
+  )
+)
+
+
+server <- function(input, output, session) {
+  
+  input.year <- reactive({
+    input$year
+  })
+  
+  input.type <- reactive({
+    input$type
+  })
+  
+  input.showbeats <- reactive({
+    input$show.beats
+  })
+  
+  
+  #Beats and each location (the location of a crime in that beat) in some year
+  beat.loc <- reactive({
+    year = input.year()
+    beat_locations = sample_pop[-c(1:7, 12:20)]
+    beat_locations %>%
+      group_by(Beat) %>%
+      filter(Year == year) %>%
+      add_tally(name = "N.crimes") %>%
+      filter(row_number(Beat) == 1)
+  })
+  
+  
+  #organizar populacao conforme shapefile
+  c.shape <- reactive({
+    #População
+    pop_list = c()
+    for(i in 1:length(c.areas$community)) {
+      pop_list[i] = chicago_se_index[chicago_se_index$CA.number == c.areas$area_numbe[i], ]$Population
+    }
+    c.areas$population = pop_list
+    
+    #Densidade
+    ca.density = c()
+    for(i in 1:length(c.areas$community)) {
+      ca.density[i] = c.areas$population[i] / (c.areas@polygons[[i]]@area * 10000)
+    }
+    c.areas$density = ca.density
+    c.areas
+  })
+  
+  
+  #Hover action para os poligonos
+  ca.labels <- reactive({
+    c.areas = c.shape()
+    type = input.type()
+    
+    if(type == "pop") {
+      sprintf(
+        "<strong>%s</strong><br/>População total: %g",
+        c.areas$community, c.areas$population
+      ) %>% lapply(htmltools::HTML)
+    } else if(type == "pop.density") {
+      sprintf(
+        "<strong>%s</strong><br/>Densidade populacional: %g",
+        c.areas$community, c.areas$density
+      ) %>% lapply(htmltools::HTML)
+    }
+  })
+  
+  
+  #criar uma pallete de cores para as community areas
+  map.pallete <- reactive({
+    c.areas = c.shape()
+    type = input.type()
+    
+    if(type == "pop") {
+      bins = c(0, 10000, 30000, 50000, 70000, 90000, Inf)
+      colorBin(
+        palette = "YlOrBr",
+        domain = c.areas$population,
+        bins = bins) 
+    } else if(type == "pop.density") {
+      bins = c(0, 1000, 3000, 5000, 7000, 9000, Inf)
+      colorBin(
+        palette = "YlOrBr",
+        domain = c.areas$density,
+        bins = bins) 
+    }
+  })
+  
+  
+  output$ca.map <- renderLeaflet({
+    c.areas = c.shape()
+    beat_locations = beat.loc()
+    pal = map.pallete()
+    type = input.type()
+    labels = ca.labels()
+    
+    if(type == "pop") {
+      var = c.areas$population
+    } else if(type == "pop.density") {
+      var = c.areas$density
+    }
+    
+    leaflet(c.areas) %>% 
+      
+      setView(lat = 41.82795, lng = -87.71007, zoom = 11) %>%
+      
+      addControl("<h3>População por community area em 2016 (estimativa)</h3><p><em>Crimes por beat em 2016</em></p>", position = "topleft") %>%
+      
+      addPolygons(color = pal(var), weight = 1, smoothFactor = 0.5,
+                  opacity = 1.0, fillOpacity = 0.5,
+                  label = labels,
+                  highlightOptions = highlightOptions(color = "red", weight = 3)) %>%
+      
+      addLegend(pal = pal, values = var, opacity = 0.7, title = "Total da população",
+                position = "bottomright")
+  })
+  
+  
+  observe({
+    show.beats = input.showbeats()
+    proxy = leafletProxy("ca.map", data = c.areas)
+    
+    proxy %>%
+    addCircles(layerId = as.character(c(1:277)), data = beat_locations, lng = ~Longitude, lat = ~Latitude, weight = 1, radius = ~N.crimes, popup = ~factor(Beat), highlightOptions = highlightOptions(color = "blue", weight = 2, bringToFront = TRUE))
+    
+    if(show.beats == F) {
+      proxy %>% removeShape(as.character(c(1:277)))
+    }
+  })
+}
+
+shinyApp(ui, server)
+
+#PARA FAZER A DASHBOARD---------------------
+#https://rstudio.github.io/shinydashboard/get_started.html
+#https://stackoverflow.com/questions/36469631/how-to-get-leaflet-for-r-use-100-of-shiny-dashboard-height
+#https://github.com/rstudio/shiny-examples/tree/master/063-superzip-example

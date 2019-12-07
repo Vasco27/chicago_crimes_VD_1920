@@ -234,10 +234,10 @@ c.areas = readOGR("mapas/CA/geo_export_980e6813-e98b-47fa-9ed8-b8eb75ae851d.shp"
 display.brewer.all()
 
 #criar uma pallete de cores para as community areas
-bins = c(0, 10000, 20000, 30000, 40000, 50000, 60000, 70000, 80000, 100000)
+bins = c(0, 400, 800, 1200, 1600, 2000, 2400, 2800, 3200, 3600)
 pal <- colorBin(
   palette = "YlOrBr",
-  domain = chicago_se_index$Population,
+  domain = safe$n,
   bins = bins)
 
 #latitude e longitude de cada beat em 2016
@@ -355,79 +355,197 @@ CHIT<-sum(beats_2016$CHI)    #THIS IS THE TOTAL CHI FOR THE SUB-SAMPLE
 
 #------------------------------------------------SAFETY FUNCTION-----------------------------------------------
 
+
 safe<-beats_2016 %>%
      group_by(Community_Area) %>%
-          tally()
+          tally(CHI)  
 
+
+# for CHI/population  -----------
+#safe$population<-chicago_pop$Population
+
+#safe<-safe %>%
+#      mutate(n=100*n/population)
+
+lambda=1/median(safe$n)
+  
+safe<-safe %>%
+     #mutate( n=-n/CHIT+1)
+      mutate( safety=1000*exp(-n*lambda))
+
+
+
+#here we can have a notion of dispersion
+
+ggplot(data=safe,aes(n,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(-500,1500)
+#-----------
+safe.d<-melt(safe)[-c(1:77),]
+
+
+#distribution of CHI vs Safety, if Safety is too narrow it will pose a problem in the color gradient
+
+ggplot(data=safe.d) + geom_density(aes(x=value,fill=variable, alpha=0.5)) + xlim(-500,1500)
+
+
+
+#criar uma pallete de cores para as community areas
+#bins = c(cri2/2, 1/10*cri,2/10*cri, 3/10*cri, 4/10*cri, 5/10*cri, 6/10*cri, 7/10*cri, 8/10*cri, 9/10*cri, cri)
+bins = c(-300, 0, 10, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000)
+pal <- colorBin(
+  palette = "RdYlGn",
+  domain = safe$n,
+  bins = bins
+)
 
 pop_list_s = vector(mode = "list", length = length(c.areas$community))
 for(i in 1:length(c.areas$community)) {
-  pop_list_s[[i]] = chicago_se_index[(safe$Community_Area) == (c.areas$area_numbe[i]), ]$Population
+  pop_list_s[[i]] = safe[(safe$Community_Area) == (c.areas$area_numbe[i]), ]$safety
 }
 
-pop_list_s = unlist(pop_list_s)
+pop_list_s <- unlist(pop_list_s)
 
-c.areas$safety<- 
+c.areas$safety<-pop_list_s 
+
+c.areas$safety
 
 labels <- sprintf(
   "<strong>%s</strong><br/>total population: %g",
-  c.areas$community, c.areas$population
+  c.areas$area_numbe, c.areas$safety
 ) %>% lapply(htmltools::HTML)
 
-#O titulo é opcional, provavelmente nao vai ser usado. Pode ser adicionado no shiny ou mesmo no notebook
+#---mapa
+
 leaflet(c.areas) %>% 
 
   
-  addPolygons(color = ~pal(population), weight = 1, smoothFactor = 0.5,
+  addPolygons(color = ~pal(safety), weight = 1, smoothFactor = 0.5,
               opacity = 1.0, fillOpacity = 0.5,
               label = labels,
-              highlightOptions = highlightOptions(color = "white", weight = 1)) %>%
+              highlightOptions = highlightOptions(color = "white", weight = 1)) 
   
-  addLegend(pal = pal, values = ~population, opacity = 0.7, title = "Total da população",
-            position = "bottomright") %>%
-  
-  addCircles(data = beat_locations, lng = ~Longitude, lat = ~Latitude, weight = 1, radius = ~N.crimes, popup = ~factor(Beat),
-             highlightOptions = highlightOptions(color = "blue", weight = 2,
-                                                 bringToFront = TRUE))
-
-
-
-
-
-
-
-
 
 
 
 #---------------------------------------------------------------------------------------
+#-----------------------DAYS OF 2016----------------------------------------------------------------
 
-radar1<-beats_2016 %>%
+
+
+library(lubridate)
+
+beats_2016$Date1 <- as.Date(beats_2016$Date)
+daily<-aggregate(beats_2016$CHI, by=list(beats_2016$Date1), sum)
+
+daily$ID <- seq.int(nrow(daily))
+ggplot(daily,aes(x=ID,y=safety))+geom_linerange()+coord_polar()+ylim(0,1000)
+
+filter(daily,x>mean(daily$x))
+
+
+
+ggplot(data=daily,aes(x,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(-2000,21000)
+
+lambda=1/median(daily$x)
+
+daily<-daily %>%
+  #mutate( n=-n/CHIT+1)
+  mutate( safety=1000*exp(-x*lambda))
+
+ggplot(data=daily,aes(safety,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(0,1000)
+
+#-------------------------------------POLAR PLOT---------------------------------------------------------
+radar2016<-beats_2016 %>%
    group_by(month(Date)) %>%
        tally(CHI)
 
-radar1<-radar1 %>%
-   mutate( n=(1/n)*CHIT) %>%
-      pull()
+lambda=1/median(radar2016$n)
 
-#------------------------------------------------POLAR PLOT------------------------------------------------
-
-radar1<-as.data.frame(radar1)
-radar1$month<-seq(as.Date("2016-01-1"), as.Date("2016-12-01"), by="months")
+radar2016<-radar2016 %>%
+    mutate(safety=1000*exp(-n*lambda))
 
 
-p = ggplot(radar1, aes(x=month, y=radar1,fill=radar1)) +
+
+ggplot(data=radar2016,aes(n)) + geom_density(kernel="gaussian")
+
+
+
+radar2016$month<-seq(as.Date("2016-01-1"), as.Date("2016-12-01"), by="months")
+
+
+p = ggplot(radar2016, aes(x=month, y=safety, fill=safety)) +
   theme_gray() +
-  scale_fill_gradient(low="red", high="dark green", limits=c(8,18),guide=FALSE) + 
+  scale_fill_gradient(low="red", high="dark green", limits=c(min(radar2016$safety),max(radar2016$safety)),guide=FALSE) + 
   theme(panel.background = element_blank(),panel.border = element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),axis.text.y = element_blank(),axis.ticks.y = element_blank()) 
 p + geom_bar(stat="identity") + 
-  geom_hline(yintercept=mean(radar1$radar1),size=0.6,alpha=0.5,linetype="dashed") + 
+  geom_hline(yintercept=mean(radar2016$safety),size=0.6,alpha=0.5,linetype="dashed") + 
   coord_polar() + 
   theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) + 
   labs(title = "Safety in Chicago (2016)") +
-  annotate("text", x=as.Date("2016-06-01"), y=14, label=("monthly average"),alpha=0.3,fontface =1)
+  annotate("text", x=as.Date("2016-06-01"), y=1.1*mean(radar2016$safety), label=("monthly average"),alpha=0.3,fontface =1)
 
-#---------------------------------SAFETY MAP----------------------------------
+#---------------------------------SAFETY CIRCLE-------------------------------------------------------------------------
+
+
+beats_2001 <-complete_sample %>%
+  #group_by(Beat) %>%
+      filter(Year==2001 ) #%>%
+
+radar2001<-beats_2001 %>%
+  group_by(month(Date)) %>%
+    tally(CHI)
+
+lambda=1/median(radar2001$n)
+
+radar2001<-radar2001 %>%
+   mutate(safety=1000*exp(-n*lambda))
+
+ggplot(data=radar2001,aes(n)) + geom_density(kernel="gaussian")
+
+
+
+radar2001$month<-seq(as.Date("2001-01-1"), as.Date("2001-12-01"), by="months")
+
+
+p = ggplot(radar2001, aes(x=month, y=safety, fill=safety)) +
+  theme_gray() +
+  scale_fill_gradient(low="red", high="dark green", limits=c(min(radar2001$safety),max(radar2001$safety)),guide=FALSE) + 
+  theme(panel.background = element_blank(),panel.border = element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),axis.text.y = element_blank(),axis.ticks.y = element_blank()) 
+p + geom_bar(stat="identity") + 
+  geom_hline(yintercept=mean(radar2001$safety),size=0.6,alpha=0.5,linetype="dashed") + 
+  coord_polar() + 
+  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) + 
+  labs(title = "Safety in Chicago (2001)") +
+  annotate("text", x=as.Date("2001-06-01"), y=1.1*mean(radar2001$safety), label=("monthly average"),alpha=0.3,fontface =1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

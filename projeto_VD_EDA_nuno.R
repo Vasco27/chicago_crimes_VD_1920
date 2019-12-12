@@ -12,6 +12,7 @@ libraries <- function() {
   library(htmlwidgets)
   library(htmltools) #Para usar elementos html
   library(stringi)
+  library(lubridate)
 }
 read_files <- function() {
   
@@ -201,10 +202,12 @@ cols_to_rm = c(1:2, 4:5, 12:13, 15:17, 19, 22)
 return_list = get_complete_sample(files.read = TRUE, cols.rm = cols_to_rm, na.rm = TRUE)
 
 complete_sample = return_list$complete_sample
-View(head(complete_sample))
 nrow(complete_sample)
 rm(return_list)
 complete_sample$Date = format(strptime(complete_sample$Date, format = "%m/%d/%Y %I:%M:%S %p"), format = "%d/%m/%Y %H:%M:%S %p")
+library(lubridate)
+complete_sample$Date = (dmy_hms(complete_sample$Date))
+
 #indice socioeconomico de chicago
 #Hardship index = juncao de todos os outros parametros do dataset
 chicago_se_index = read_csv("datasets/indice_socioeconomico_chicago_2008_2012.csv")
@@ -304,42 +307,71 @@ b.areas = readOGR("mapas/Beats/geo_export_e80401d7-e6f8-4d20-8da4-b699365275e5.s
 length(b.areas$beat_num)
 
 
-#----------------------------NUNO-EDIT---------------------------------------------------------------------
+#----------------------------SAFETY FUNCTION PRIMARY-----------------------------------------------------------
 #--------------------------------------------------------------------------------------------------------------
 #--------------------------------------------------------------------------------------------------------------
 #---------------------------------------------------YES--------------------------------------------------------
 
 #CHI stands for Crime Harm Index
+
+
+descript<-complete_sample %>% 
+   group_by(Primary_Type, Description)  %>% 
+        summarise(n = n()) #%>% mutate(freq = prop.table(n))
+
+nuno<-complete_sample %>%
+        filter(Primary_Type=="HOMICIDE") 
         
 complete_sample<-complete_sample %>%
-                       mutate(  
-                             CHI=case_when(Primary_Type == "ARSON" ~ 33,
-                                   Primary_Type == "ASSAULT" ~ 1,
-                                   Primary_Type == "BATTERY" ~ 0.5,
+                       mutate(CHI=case_when(Description == "BY EXPLOSIVE" ~ 730,
+                                           Primary_Type == "ARSON" & Description != "AGGRAVATED" ~ 17.5,
+                                           str_detect(Description,"^AGGRAV") ~ 1825,
+                                           Primary_Type == "ARSON" & Description == "AGGRAVATED" ~ 2190,
+                                           Primary_Type == "ASSAULT" & str_detect(Description,"^AGGRAV",negate=TRUE) ~ 1,
+                                   Primary_Type == "ASSAULT" & str_detect(Description,"^AGGRAV") ~ 365,
+                                   Primary_Type == "BATTERY" & str_detect(Description,"^AGGRAV", negate=TRUE) ~ 0.2,
+                                   Primary_Type == "BATTERY" & str_detect(Description,"^AGGRAV") ~ 365,
                                    Primary_Type == "BURGLARY" ~ 20,
                                    Primary_Type == "CONCEALED CARRY LICENSE VIOLATION" ~ 1,
                                    Primary_Type == "CRIM SEXUAL ASSAULT" ~ 800,
-                                   Primary_Type == "CRIMINAL DAMAGE" ~ 2,
+                                   Primary_Type == "CRIMINAL DAMAGE" ~ 5,
                                    Primary_Type == "CRIMINAL TRESPASS" ~ 1,
-                                   Primary_Type == "DECEPTIVE PRACTICE" ~ 5,
-                                   Primary_Type == "GAMBLING" ~ 1,
+                                   Primary_Type == "DECEPTIVE PRACTICE" ~ 3,
+                                   Primary_Type == "GAMBLING" ~ 0.2,
                                    Primary_Type == "HOMICIDE" ~ 5475,
-                                   Primary_Type == "INTERFERENCE WITH PUBLIC OFFICER" ~ 10,
-                                   Primary_Type == "INTIMIDATION" ~ 50,
-                                   Primary_Type == "KIDNAPPING" ~ 2000,
-                                   Primary_Type == "LIQUOR LAW VIOLATION" ~ 1,
-                                   Primary_Type == "MOTOR VEHICLE THEFT" ~ 20,
-                                   Primary_Type == "NARCOTICS" ~ 0.2,
+                                   Primary_Type == "INTERFERENCE WITH PUBLIC OFFICER" ~ 8,
+                                   Primary_Type == "INTIMIDATION" ~ 8,
+                                   Primary_Type == "KIDNAPPING" ~ 548,
+                                   Primary_Type == "LIQUOR LAW VIOLATION" ~ 0.2,
+                                   Primary_Type == "MOTOR VEHICLE THEFT" ~ 5,
+                                   Primary_Type == "NARCOTICS" & str_detect(Description,"^MANU",negate=TRUE) ~ 2,
+                                   Primary_Type == "NARCOTICS" & str_detect(Description,"^MANU") ~ 365,
                                    Primary_Type == "OBSCENITY" ~ 1,
+                                   Description == "HARBOR RUNAWAY" ~ 1,
+                                   Description == "SALE TOBACCO PRODUCTS TO MINOR" ~ 1,
+                                   Description == "AGG CRIM SEX ABUSE FAM MEMBER" ~ 2300,
+                                   Description == "AGG SEX ASSLT OF CHILD FAM MBR" ~ 2300,
+                                   Description == "CHILD ABANDONMENT" ~700,
+                                   Description == "CHILD ABDUCTION" ~ 265,
+                                   Description == "CHILD ABUSE" ~ 365,
+                                   Description == "CHILD PORNOGRAPHY" ~ 365,
+                                   Description == "CRIM SEX ABUSE BY FAM MEMBER" ~ 700,
+                                   Description == "ENDANGERING LIFE/HEALTH CHILD" ~ 365,
                                    Primary_Type == "OFFENSE INVOLVING CHILDREN" ~ 100,
-                                   Primary_Type == "OTHER OFFENSE" ~ 0,
-                                   Primary_Type == "PROSTITUTION" ~ 0,
+                                   str_detect(Description,"^HARASSMENT") ~ 10,
+                                   Primary_Type == "OTHER OFFENSE" ~ 1,
+                                   Primary_Type == "PROSTITUTION" ~ 0.5,
                                    Primary_Type == "PUBLIC PEACE VIOLATION" ~ 1,
                                    Primary_Type == "ROBBERY" ~ 365,
+                                   Description == "AGG CRIMINAL SEXUAL ABUSE" ~ 700,
+                                   Description == "ATT AGG CRIMINAL SEXUAL ABUSE" ~ 700,
+                                   Description == "ATT CRIM SEXUAL ABUSE" ~ 365,
+                                   Description == "CRIMINAL SEXUAL ABUSE" ~ 365,
+                                   Description == "SEXUAL EXPLOITATION OF A CHILD" ~ 365,
                                    Primary_Type == "SEX OFFENSE" ~ 30,
                                    Primary_Type == "STALKING" ~ 5,
                                    Primary_Type == "THEFT" ~ 10,
-                                   Primary_Type == "WEAPONS VIOLATION" ~ 10,
+                                   Primary_Type == "WEAPONS VIOLATION" ~ 50,
                              )
                           
                          )
@@ -360,7 +392,8 @@ safe<-beats_2016 %>%
      group_by(Community_Area) %>%
           tally(CHI)  
 
-
+sum(beats_2016$CHI)
+sum(safe$n)
 # for CHI/population  -----------
 #safe$population<-chicago_pop$Population
 
@@ -458,6 +491,8 @@ radar2016<-beats_2016 %>%
    group_by(month(Date)) %>%
        tally(CHI)
 
+sum(radar2016$n)
+
 lambda=1/median(radar2016$n)
 
 radar2016<-radar2016 %>%
@@ -486,63 +521,387 @@ p + geom_bar(stat="identity") +
 #---------------------------------SAFETY CIRCLE-------------------------------------------------------------------------
 
 
-beats_2001 <-complete_sample %>%
+beats_2012 <-complete_sample %>%
   #group_by(Beat) %>%
-      filter(Year==2001 ) #%>%
+  filter(Year==2012 ) #%>%
 
-radar2001<-beats_2001 %>%
-  group_by(month(Date)) %>%
-    tally(CHI)
 
-lambda=1/median(radar2001$n)
-
-radar2001<-radar2001 %>%
-   mutate(safety=1000*exp(-n*lambda))
-
-ggplot(data=radar2001,aes(n)) + geom_density(kernel="gaussian")
+sum(beats_2013$CHI)
 
 
 
-radar2001$month<-seq(as.Date("2001-01-1"), as.Date("2001-12-01"), by="months")
+beats_2013$Date<-(dmy_hms(beats_2013$Date))
+beats_2014$Date<-(dmy_hms(beats_2014$Date))
+beats_2015$Date<-(dmy_hms(beats_2015$Date))
+
+mama<-beats_2013 %>%
+      group_by(month=floor_date(Date,"1 day")) %>%
+             tally(CHI)
+
+mama3<-beats_2015 %>%
+      group_by(month=floor_date(Date,"1 day")) %>%
+            tally(CHI)
 
 
-p = ggplot(radar2001, aes(x=month, y=safety, fill=safety)) +
-  theme_gray() +
-  scale_fill_gradient(low="red", high="dark green", limits=c(min(radar2001$safety),max(radar2001$safety)),guide=FALSE) + 
-  theme(panel.background = element_blank(),panel.border = element_blank(),axis.title.x=element_blank(),axis.title.y=element_blank(),axis.text.y = element_blank(),axis.ticks.y = element_blank()) 
-p + geom_bar(stat="identity") + 
-  geom_hline(yintercept=mean(radar2001$safety),size=0.6,alpha=0.5,linetype="dashed") + 
-  coord_polar() + 
-  theme(axis.text.x = element_text(angle=45, vjust = 1, hjust=1)) + 
-  labs(title = "Safety in Chicago (2001)") +
-  annotate("text", x=as.Date("2001-06-01"), y=1.1*mean(radar2001$safety), label=("monthly average"),alpha=0.3,fontface =1)
+lambda=1/median(mama3$n)
 
+mama3<-mama3 %>%
+  mutate(safety=1000+1000*exp(-n*lambda))
+
+
+ggplot(data=mama,aes(n)) + geom_density(kernel="gaussian")
 
 
 
 
 
 
+mama$s2014<-mama2$safety
+mama$s2015<-mama3$safety
+
+mama <- mama %>%
+           mutate(min1=pmin(safety,s2014,s2015))
+
+mama <- mama %>%
+          mutate(max1=pmax(safety,s2014,s2015))
+
+mama <- mama %>%
+          mutate(mean1=(safety+s2014+s2015)/3)
+
+
+
+
+library(scales)
+
+p <- ggplot(mama, aes(month, mean1))
+p + geom_pointrange(aes(ymin = min1, ymax = max1,color=mean1),size=1,fatten=1)+
+  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", midpoint=1400,guide = "colourbar", aesthetics = "colour") + 
+  expand_limits( y = 0)+
+  coord_polar() +
+  #theme_dark() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title.x=element_blank(),axis.title.y=element_blank(),
+    axis.text.y = element_blank(),axis.ticks.y = element_blank(),
+    panel.background = element_rect(fill = 'white')
+    ) +
+    geom_hline(yintercept=mean(mama$mean1),size=0.3,alpha=0.6,color="dark grey") #+
+    #geom_hline(yintercept=500,size=0.3,alpha=0.6,color="dark grey") +
+    #geom_hline(yintercept=1800,size=0.3,alpha=0.6,color="dark grey")
+ 
+  #theme(panel.background = element_blank(),panel.border = element_blank(),
+  #      axis.title.x=element_blank(),axis.title.y=element_blank(),
+  #      axis.text.y = element_blank(),axis.ticks.y = element_blank())
+
+
+
+
+#------------------------------SAFETY RING FOR ONE YEAR------------------------
+
+
+circle2012 <-small_sample %>%
+                filter(Year==2012 ) 
+
+lambda_c=1/median(circle2012$n)
+
+circle2012<-circle2012 %>%
+                mutate(safety=1000+1000*exp(-n*lambda_c))
+
+ggplot(data=circle2012,aes(safety)) + geom_density(kernel="gaussian")
+
+p <- ggplot(circle2012, aes(day, safety))
+p + geom_point(aes(color=safety),size=2,fatten=1)+
+  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", midpoint=1400,guide = "colourbar", aesthetics = "colour") + 
+  expand_limits( y = 0)+
+  coord_polar() +
+  #theme_dark() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title.x=element_blank(),axis.title.y=element_blank(),
+    axis.text.y = element_blank(),axis.ticks.y = element_blank(),
+    panel.background = element_rect(fill = 'grey')
+  ) +
+  geom_hline(yintercept=mean(circle2012$safety),size=2,alpha=0.7,color="white") #+
+
+
+#---------------------------------------------------RAINY DAYS IN CHICAGO------
+
+draw40 <- data.frame(
+                 monthz=character(), 
+                 dayz=character(), 
+                 stringsAsFactors=FALSE) 
+
+
+for (i in 1:30)
+{
+  draw40[i,2]<-sample(1:30, 1)
+  draw40[i,1]<-sample(1:12, 1)
+}
+
+library(readxl)
+weather <-read_excel("datasets/Cambridge_Crime_Harm_Index_2.xlsx",sheet="Sheet3")
+
+weather<-weather[-c(1),]
+
+rainy<-round_sample[-c(32:365),]
+
+
+
+
+rainy$r2007<-weather$Precipi0a0ion2007
+rainy$r2008<-weather$Precipi0a0ion2008
+rainy$r2009<-weather$Precipi0a0ion2009
+rainy$r2010<-weather$Precipi0a0ion2010
+rainy$r2011<-weather$Precipi0a0ion2011
+rainy$r2012<-weather$Precipi0a0ion2012
+rainy$r2013<-weather$Precipi0a0ion2013
+rainy$r2014<-weather$Precipi0a0ion2014
+rainy$r2015<-weather$Precipi0a0ion2015
+rainy$r2016<-weather$Precipi0a0ion2016
+
+#rainy$r2013[rainy$r2013=="T"]<-0.01
+#rainy$r2013<-as.double(rainy$r2013)
+#rainy$r2014[rainy$r2014=="T"]<-0.01
+#rainy$r2014<-as.double(rainy$r2014)
+#rainy$r2015[rainy$r2015=="T"]<-0.01
+#rainy$r2015<-as.double(rainy$r2015)
+
+
+rainy$r2007[rainy$r2007>0]=1
+rainy$r2008[rainy$r2008>0]=1
+rainy$r2009[rainy$r2009>0]=1
+rainy$r2010[rainy$r2010>0]=1
+rainy$r2011[rainy$r2011>0]=1
+rainy$r2012[rainy$r2012>0]=1
+rainy$r2013[rainy$r2013>0]=1
+rainy$r2014[rainy$r2014>0]=1
+rainy$r2015[rainy$r2015>0]=1
+rainy$r2016[rainy$r2016>0]=1
+
+
+ggplot(rainy)+
+             geom_jitter(aes(x=r2007,y=`2007`,color=r2007))+geom_jitter(aes(x=r2008,y=`2008`))+geom_jitter(aes(x=r2009,y=`2008`))+
+             geom_jitter(aes(x=r2007,y=`2010`))+geom_jitter(aes(x=r2011,y=`2011`))+geom_jitter(aes(x=r2012,y=`2012`))+
+             geom_jitter(aes(x=r2007,y=`2013`))+geom_jitter(aes(x=r2014,y=`2014`))+geom_jitter(aes(x=r2015,y=`2015`))+
+             geom_jitter(aes(x=r2007,y=`2016`))
+
+ggplot(data=rainy,aes(n)) + geom_density(kernel="gaussian")
+
+
+#-------------------------------WEATHER----------------------------------------------------
+
+#------------------------------------------------------------------------------------------
+
+library(readxl)
+
+
+small_sample <- complete_sample %>%
+  group_by(Year, day=floor_date(Date,"1 day"))  %>%
+  tally(CHI)
+
+#remove 2001,2002,2003
+small_sample <- small_sample[-c(1:1027),]
+#remove leap days
+small_sample <- small_sample[-c(60,1521,2982,4443),]
+#remove 2017
+small_sample <- small_sample[-c(4746:4750),]
+#2014 is also bad, remove
+small_sample <- small_sample[-c(1:365),]
+
+lambda_ss=1/median(small_sample$n)
+
+small_sample<-small_sample %>%
+  mutate(safety=1000*exp(-n*lambda_ss))
+
+
+weather <-read_excel("datasets/Cambridge_Crime_Harm_Index_2.xlsx",sheet="Weather")
+
+
+
+small_sample$precipitation<-weather$Precipitation
+small_sample$Snow_Depth<-weather$`Snow Depth`
+small_sample$Snow<-weather$`New Snow`
+
+small_sample<-small_sample %>%
+                       mutate(Snow_Depth2=Snow_Depth/5)
+
+ggplot(small_sample)+
+  #geom_jitter(aes(x=Snow_Depth,y=safety),colour="white")+
+  #geom_jitter(aes(x=precipitation*5,y=Snow_Depth,size=safety,colour=safety,alpha=0.8)) +
+  #scale_color_gradient2(low = "red", mid="yellow", high = "dark green", midpoint=500,guide = "colourbar", aesthetics = "colour") +
+  #geom_point(aes(x=Snow,y=safety,colour="green")) +
+  xlim(0,20) +
+  geom_smooth(aes(x=Snow_Depth,y=safety),method=lm,color="white") +
+  geom_smooth(aes(x=precipitation,y=safety),method=lm,color="red") +
+  geom_smooth(aes(x=Snow,y=safety),method=lm,color="green") 
+
+                 #RAINY SAFETY - MONTHLY
+
+small_sample1 <- small_sample %>% 
+                    filter(month(day)==12) 
+
+small_sample1$precipitation[small_sample1$precipitation>0]=1
+
+ggplot(small_sample1) +
+       geom_point(aes(x=precipitation,y=safety)) +
+       geom_smooth(aes(x=precipitation,y=safety))
+
+
+                 #DAILY SAFETY RAINY
+
+#IT WOULD BE NICE TO DISPLAY THE RATIO OF RAINY/NON RAINY DAYS
+#ALL MONTHS HAVE HIGHER SAFETy WITH RAIN, EXCEPT DECEMBER. THO THIS IS WITHIN ERROR
+
+small_sample1 <- small_sample %>% 
+  filter(month(day)==12) 
+
+small_sample1$precipitation[small_sample1$precipitation>0]=1
+
+ggplot(small_sample1) +
+  geom_point(aes(x=precipitation,y=safety)) +
+  geom_smooth(aes(x=precipitation,y=safety))
+
+
+
+#-----------------------------------------------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------------------------------------------
+
+#--------------------------------SAFETY RING FOR ALL YEARS----------------------------------------------------------------------------
+
+
+small_sample <- complete_sample %>%
+                    group_by(Year, day=floor_date(Date,"1 day"))  %>%
+                        tally(CHI)
+
+#remove 2001,2002,2003
+small_sample <- small_sample[-c(1:1027),]
+#remove leap days
+small_sample <- small_sample[-c(60,1521,2982,4443),]
+#remove 2017
+small_sample <- small_sample[-c(4746:4750),]
+#2014 is also bad, remove
+small_sample <- small_sample[-c(1:365),]
+
+lambda_ss=1/median(small_sample$n)
+
+small_sample<-small_sample %>%
+  mutate(safety=2000+1000*exp(-n*lambda_ss))
+
+small_sample$dayz<-small_sample$day[1:365]
+
+round_sample <- dcast(small_sample, dayz ~ Year, value.var="safety")
+
+round_sample <- round_sample %>%
+  mutate(stDev=apply(.[(2:13)],1,sd))
+
+round_sample <- round_sample %>%
+  mutate(min1=pmin(`2005`,`2006`,`2007`,`2008`,`2009`,`2010`,`2011`,`2012`,`2013`,`2014`,`2015`,`2016`))
+
+round_sample <- round_sample %>%
+  mutate(max1=pmax(`2005`,`2006`,`2007`,`2008`,`2009`,`2010`,`2011`,`2012`,`2013`,`2014`,`2015`,`2016`))
+
+round_sample <- round_sample %>%
+  mutate(mean1=(`2005`+`2006`+`2007`+`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`)/12)
+
+
+ggplot(data=round_sample,aes(mean1,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(1000,2000)
+#ggplot(data=small_sample,aes(n,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(0,80000)
+
+day_first<-c(as.numeric(round_sample$dayz[1]), as.numeric(round_sample$dayz[32]), as.numeric(round_sample$dayz[60]),
+             as.numeric(round_sample$dayz[91]), as.numeric(round_sample$dayz[121]), as.numeric(round_sample$dayz[152]),
+             as.numeric(round_sample$dayz[182]), as.numeric(round_sample$dayz[213]), as.numeric(round_sample$dayz[244]),
+             as.numeric(round_sample$dayz[274]), as.numeric(round_sample$dayz[305]), as.numeric(round_sample$dayz[335]))
+
+
+p <- ggplot(round_sample, aes(dayz, mean1))
+p + geom_pointrange(aes(ymin = min1, ymax = max1,color=mean1),size=0.72,fatten=1)+
+  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", guide=guide_colourbar(),midpoint=2375, aesthetics = "colour") + 
+  expand_limits( y = 0)+
+  coord_polar() +
+  #theme_dark() +
+  guides(fill = guide_colourbar(title="Safety",label=FALSE, ticks=FALSE)) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.title.x=element_blank(),axis.title.y=element_blank(),
+    axis.text.y = element_blank(),axis.ticks.y = element_blank(),
+    panel.background = element_rect(fill = 'white')
+  ) +
+  labs(title = "Safety in Chicago (2005-2016)")+
+  geom_hline(yintercept=mean(round_sample$mean1),size=0.3,alpha=0.6,color="dark grey") +
+  geom_hline(yintercept=2000,size=0.3,alpha=0.6,color="dark grey",linetype="dashed") +
+  annotate("text", x=round_sample$dayz[135], y=1.3*mean(round_sample$mean1), label=("daily average"),alpha=0.3,fontface =1) +
+  geom_vline(xintercept=day_first,alpha=0.1) 
+
+
+
+
+#---------------------------SAFETY ALONG TIME/HOLIDAYS/SPECIFIC DAY----------------------------------------------------
+
+#new years day security has been improving / christmas getting worse
+#huge blizzard feb 1 to feb 2, piled snow until feb 15
+#recession
+#9/11
+#globally, safety has increased, but took a plunge in 2016
+
+
+
+oneday <- small_sample %>% 
+  filter(month(day)==12 & day(day)==27) 
+
+
+
+ggplot(oneday) +
+  geom_point(aes(x=day,y=safety)) +
+  geom_smooth(aes(x=day,y=safety))
+
+
+
+onemonth <- small_sample %>% 
+  filter(Year==2008 & ( month(day)==7))# | month(day)==8))
+
+
+ggplot(onemonth) +
+  geom_point(aes(x=day,y=safety)) +
+  geom_smooth(aes(x=day,y=safety))
 
 
 
 
 
+ggplot(small_sample) +
+  geom_point(aes(x=day,y=safety)) +
+  geom_smooth(aes(x=day,y=safety))
 
 
+#-------------------------------------------BEATS SAFETY-----------------------------------------------
 
 
+bitz<-beats_2016 %>% 
+    group_by(Beat) %>% 
+        tally(CHI)
+
+bitz2<-beats_2016 %>% 
+  group_by(Beat) %>% 
+     tally()
+
+lambda_b=1/median(bitz$n)
+
+bitz<-bitz %>%
+  mutate(safety=1000*exp(-n*lambda_b))
 
 
-
-
-
-
-
-
-
-
-
+ggplot(data=bitz2,aes(x=reorder(Beat,n),y=n,color=n))+geom_col()+
+  scale_x_discrete(labels = NULL) +
+  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", 
+                        midpoint=200,guide = "colourbar", aesthetics = "colour") +
+  theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.ticks.x = element_blank())+
+  geom_hline(yintercept=365, linetype="dashed", color = "red",size=0.4) +
+  annotate(geom="text", x=50, y=380, label="1 crime per day",color="red",alpha=0.6, fontface="italic") +
+  labs(title = "Crimes per beat", y = "number of crimes / year", x = "beat")#+coord_flip()
 
 
 

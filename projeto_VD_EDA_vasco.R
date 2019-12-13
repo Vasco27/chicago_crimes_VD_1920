@@ -229,43 +229,63 @@ sample_pop = sample_pop[complete.cases(sample_pop[, "Community_Area"]), ]
 View(head(sample_pop))
 
 
-#Exploração de uma só beat------------------
 
-#Safety function
+#Safety function---------------------
 #CHI stands for Crime Harm Index
 
 complete_sample<-complete_sample %>%
-  mutate(  
-    CHI=case_when(Primary_Type == "ARSON" ~ 33,
-                  Primary_Type == "ASSAULT" ~ 1,
-                  Primary_Type == "BATTERY" ~ 0.5,
-                  Primary_Type == "BURGLARY" ~ 20,
-                  Primary_Type == "CONCEALED CARRY LICENSE VIOLATION" ~ 1,
-                  Primary_Type == "CRIM SEXUAL ASSAULT" ~ 800,
-                  Primary_Type == "CRIMINAL DAMAGE" ~ 2,
-                  Primary_Type == "CRIMINAL TRESPASS" ~ 1,
-                  Primary_Type == "DECEPTIVE PRACTICE" ~ 5,
-                  Primary_Type == "GAMBLING" ~ 1,
-                  Primary_Type == "HOMICIDE" ~ 5475,
-                  Primary_Type == "INTERFERENCE WITH PUBLIC OFFICER" ~ 10,
-                  Primary_Type == "INTIMIDATION" ~ 50,
-                  Primary_Type == "KIDNAPPING" ~ 2000,
-                  Primary_Type == "LIQUOR LAW VIOLATION" ~ 1,
-                  Primary_Type == "MOTOR VEHICLE THEFT" ~ 20,
-                  Primary_Type == "NARCOTICS" ~ 0.2,
-                  Primary_Type == "OBSCENITY" ~ 1,
-                  Primary_Type == "OFFENSE INVOLVING CHILDREN" ~ 100,
-                  Primary_Type == "OTHER OFFENSE" ~ 0,
-                  Primary_Type == "PROSTITUTION" ~ 0,
-                  Primary_Type == "PUBLIC PEACE VIOLATION" ~ 1,
-                  Primary_Type == "ROBBERY" ~ 365,
-                  Primary_Type == "SEX OFFENSE" ~ 30,
-                  Primary_Type == "STALKING" ~ 5,
-                  Primary_Type == "THEFT" ~ 10,
-                  Primary_Type == "WEAPONS VIOLATION" ~ 10,
-    )
-    
+  mutate(CHI=case_when(Description == "BY EXPLOSIVE" ~ 730,
+                       Primary_Type == "ARSON" & Description != "AGGRAVATED" ~ 17.5,
+                       str_detect(Description,"^AGGRAV") ~ 1825,
+                       Primary_Type == "ARSON" & Description == "AGGRAVATED" ~ 2190,
+                       Primary_Type == "ASSAULT" & str_detect(Description,"^AGGRAV",negate=TRUE) ~ 1,
+                       Primary_Type == "ASSAULT" & str_detect(Description,"^AGGRAV") ~ 365,
+                       Primary_Type == "BATTERY" & str_detect(Description,"^AGGRAV", negate=TRUE) ~ 0.2,
+                       Primary_Type == "BATTERY" & str_detect(Description,"^AGGRAV") ~ 365,
+                       Primary_Type == "BURGLARY" ~ 20,
+                       Primary_Type == "CONCEALED CARRY LICENSE VIOLATION" ~ 1,
+                       Primary_Type == "CRIM SEXUAL ASSAULT" ~ 800,
+                       Primary_Type == "CRIMINAL DAMAGE" ~ 5,
+                       Primary_Type == "CRIMINAL TRESPASS" ~ 1,
+                       Primary_Type == "DECEPTIVE PRACTICE" ~ 3,
+                       Primary_Type == "GAMBLING" ~ 0.2,
+                       Primary_Type == "HOMICIDE" ~ 5475,
+                       Primary_Type == "INTERFERENCE WITH PUBLIC OFFICER" ~ 8,
+                       Primary_Type == "INTIMIDATION" ~ 8,
+                       Primary_Type == "KIDNAPPING" ~ 548,
+                       Primary_Type == "LIQUOR LAW VIOLATION" ~ 0.2,
+                       Primary_Type == "MOTOR VEHICLE THEFT" ~ 5,
+                       Primary_Type == "NARCOTICS" & str_detect(Description,"^MANU",negate=TRUE) ~ 2,
+                       Primary_Type == "NARCOTICS" & str_detect(Description,"^MANU") ~ 365,
+                       Primary_Type == "OBSCENITY" ~ 1,
+                       Description == "HARBOR RUNAWAY" ~ 1,
+                       Description == "SALE TOBACCO PRODUCTS TO MINOR" ~ 1,
+                       Description == "AGG CRIM SEX ABUSE FAM MEMBER" ~ 2300,
+                       Description == "AGG SEX ASSLT OF CHILD FAM MBR" ~ 2300,
+                       Description == "CHILD ABANDONMENT" ~700,
+                       Description == "CHILD ABDUCTION" ~ 265,
+                       Description == "CHILD ABUSE" ~ 365,
+                       Description == "CHILD PORNOGRAPHY" ~ 365,
+                       Description == "CRIM SEX ABUSE BY FAM MEMBER" ~ 700,
+                       Description == "ENDANGERING LIFE/HEALTH CHILD" ~ 365,
+                       Primary_Type == "OFFENSE INVOLVING CHILDREN" ~ 100,
+                       str_detect(Description,"^HARASSMENT") ~ 10,
+                       Primary_Type == "OTHER OFFENSE" ~ 1,
+                       Primary_Type == "PROSTITUTION" ~ 0.5,
+                       Primary_Type == "PUBLIC PEACE VIOLATION" ~ 1,
+                       Primary_Type == "ROBBERY" ~ 365,
+                       Description == "AGG CRIMINAL SEXUAL ABUSE" ~ 700,
+                       Description == "ATT AGG CRIMINAL SEXUAL ABUSE" ~ 700,
+                       Description == "ATT CRIM SEXUAL ABUSE" ~ 365,
+                       Description == "CRIMINAL SEXUAL ABUSE" ~ 365,
+                       Description == "SEXUAL EXPLOITATION OF A CHILD" ~ 365,
+                       Primary_Type == "SEX OFFENSE" ~ 30,
+                       Primary_Type == "STALKING" ~ 5,
+                       Primary_Type == "THEFT" ~ 10,
+                       Primary_Type == "WEAPONS VIOLATION" ~ 50,
   )
+)
+
 
 #Conversão de datas
 complete_sample$Date_converted = parse_date_time(complete_sample$Date, orders = "mdy HMS p")
@@ -273,26 +293,29 @@ complete_sample$Date = trimws(format(strptime(complete_sample$Date, format = "%m
 
 View(head(complete_sample))
 
+#Exploração de uma só beat------------------
+
 #Filtrar por feriados em Chicago
 important_dates = complete_sample %>%
-  select(Primary_Type, Beat, Community_Area, CHI, Date_converted) %>%
+  select(Primary_Type, Beat, Community_Area, Year, CHI, Date_converted) %>%
   filter( 
-           ((day(Date_converted) == 1 | day(Date_converted) == 18) & month(Date_converted) == 1 & year(Date_converted) == 2016) | 
-           ((day(Date_converted) == 12 | day(Date_converted) == 15) & month(Date_converted) == 2 & year(Date_converted) == 2016) |
-           (day(Date_converted) == 7 & month(Date_converted) == 3 & year(Date_converted) == 2016) |
-           (day(Date_converted) == 30 & month(Date_converted) == 5 & year(Date_converted) == 2016) |
-           (day(Date_converted) == 4 & month(Date_converted) == 7 & year(Date_converted) == 2016) |
-           (day(Date_converted) == 5 & month(Date_converted) == 9 & year(Date_converted) == 2016) |
-           (day(Date_converted) == 10 & month(Date_converted) == 10 & year(Date_converted) == 2016) |
-           ((day(Date_converted) == 8 | day(Date_converted) == 11 | day(Date_converted) == 24) & month(Date_converted) == 11 & year(Date_converted) == 2016) |
-           ((day(Date_converted) == 24 | day(Date_converted) == 25) & month(Date_converted) == 12 & year(Date_converted) == 2016)
-         ) %>%
-  group_by(Community_Area)
+           ((day(Date_converted) == 1 | day(Date_converted) == 18) & month(Date_converted) == 1) | 
+           ((day(Date_converted) == 12 | day(Date_converted) == 15) & month(Date_converted) == 2) |
+           (day(Date_converted) == 7 & month(Date_converted) == 3) |
+           (day(Date_converted) == 30 & month(Date_converted) == 5) |
+           (day(Date_converted) == 4 & month(Date_converted) == 7) |
+           (day(Date_converted) == 5 & month(Date_converted) == 9) |
+           (day(Date_converted) == 10 & month(Date_converted) == 10) |
+           ((day(Date_converted) == 8 | day(Date_converted) == 11 | day(Date_converted) == 24) & month(Date_converted) == 11) |
+           ((day(Date_converted) == 24 | day(Date_converted) == 25) & month(Date_converted) == 12)
+         )
 
 View(important_dates)
 
 #Safety e nº de crimes de cada CA
 CHI_per_CA = important_dates %>%
+  filter(Year == 2016) %>%
+  group_by(Community_Area) %>%
   summarise(
     CHI = sum(CHI),
     n = n()
@@ -303,12 +326,6 @@ View(CHI_per_CA)
 #Filtrar por community areas mais perigosas
 CHI_per_CA[CHI_per_CA$CHI == max(CHI_per_CA$CHI), ] #CA com maior CHI (menos safety) (43)
 CHI_per_CA[CHI_per_CA$n == max(CHI_per_CA$n), ] #CA com maior nº de crimes (25)
-
-important_dates = important_dates %>%
-  filter(Community_Area == 25 | Community_Area == 43) 
-
-View(important_dates)
-
 
 
 #Nomes dos feriados de acordo com os dias e os meses
@@ -364,8 +381,16 @@ for (date in important_dates$Date_converted) {
 important_dates$Holiday = holidays
 View(important_dates)
 
+#Ver so para 2016
+important_dates_2016 = important_dates %>%
+  filter(Year == 2016) %>%
+  filter(Community_Area == 25 | Community_Area == 43) 
+
+View(important_dates)
+
+
 #Pior CA em termos de safety
-worst_safety = important_dates %>%
+worst_safety = important_dates_2016 %>%
   filter(Community_Area == CHI_per_CA[CHI_per_CA$CHI == max(CHI_per_CA$CHI), ]$Community_Area)
 View(worst_safety)
 
@@ -383,7 +408,7 @@ y_axis = list(
   showgrid = FALSE
 )
 
-plot_ly(worst_safety, x = ~hour(worst_safety$Date_converted[Holiday == "Memorial Day"]), y = ~worst_safety$CHI[Holiday == "Memorial Day"], name = "Memorial Day", type = 'scatter', mode = 'none', stackgroup = 'one', fillcolor = '#F5FF8D') %>%
+plot_ly(worst_safety, x = ~hour(worst_safety$Date_converted[Holiday == "Memorial Day"]), y = ~worst_safety$CHI[Holiday == "Memorial Day"], name = "Memorial Day", type = 'scatter', mode = 'none', stackgroup = 'one', groupnorm = "percent", fillcolor = '#F5FF8D') %>%
   add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Martin Luther King Jr. Day"]),y = ~worst_safety$CHI[Holiday == "Martin Luther King Jr. Day"], name = "Martin Luther King Jr. Day", fillcolor = "#4C74C9")%>%
   add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Lincoln's Birthday"]),y = ~worst_safety$CHI[Holiday == "Lincoln's Birthday"], name = "Lincoln's Birthday", fillcolor = "#700961")%>%
   add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Washington's Birthday"]),y = ~worst_safety$CHI[Holiday == "Washington's Birthday"], name = "Washington's Birthday", fillcolor = "#312F44")%>%
@@ -398,6 +423,461 @@ plot_ly(worst_safety, x = ~hour(worst_safety$Date_converted[Holiday == "Memorial
   add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Christmas Day"]),y = ~worst_safety$CHI[Holiday == "Christmas Day"], name = "Christmas Day", fillcolor = "#51395e") %>%
   
   layout(xaxis = x_axis, yaxis = y_axis, title = "CHI per hour in different holidays in 2016 for the South Shore Community Area")
+
+
+
+
+#5 CA/BEATS com Pior/Melhor Safety média entre 2005 e 2016---------------------------------------------------------------------------
+#Safety média / CHI / Número de crimes
+
+
+base.sample = complete_sample %>%
+  select(Primary_Type, Description, Community_Area, Beat, Year, CHI, Date_converted) %>%
+  filter(Year != 2001 & Year != 2002 & Year != 2003 & Year != 2004)
+  
+View(base.sample)
+
+#Community Areas
+CA.worse.safety = base.sample %>%
+  group_by(Community_Area) %>%
+  filter(Community_Area != 0) %>% #Erro?
+  tally(CHI, name = "sum.CHI")
+
+lambda=1/median(CA.worse.safety$sum.CHI)
+
+CA.worse.safety<-CA.worse.safety %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+
+View(CA.worse.safety)
+
+#ggplot(CA.worse.safety, aes(safety)) + geom_density(kernel = "gaussian")
+
+#5 maiores
+best.CA = tail(CA.worse.safety[order(CA.worse.safety$safety), ], 5)
+worst.CA = head(CA.worse.safety[order(CA.worse.safety$safety), ], 5)
+
+names = c()
+i = 1
+for(num in best.CA$Community_Area) {
+  names[i] = chicago_se_index[chicago_se_index$CA.number == num, ]$CA.name
+  i = i+1
+}
+best.CA$CA.name = names
+best.CA$CA.name = factor(best.CA$CA.name, levels = unique(best.CA$CA.name)[order(best.CA$safety)])
+View(best.CA)
+
+names = c()
+i = 1
+for(num in worst.CA$Community_Area) {
+  names[i] = chicago_se_index[chicago_se_index$CA.number == num, ]$CA.name
+  i = i+1
+}
+worst.CA$CA.name = names
+worst.CA$CA.name = factor(worst.CA$CA.name, levels = unique(worst.CA$CA.name)[order(worst.CA$safety)])
+View(worst.CA)
+
+
+#PLOT
+x_axis = list(
+  title = "Safety"
+)
+
+y_axis = list(
+  title = "Community Area"
+  #type = "linear"
+)
+
+plot_ly(worst.CA, x = ~safety, y = ~CA.name, name = "Worst", color = I("#ff0027"), type = "bar", orientation = "h") %>%
+  add_trace(x = best.CA$safety, y = best.CA$CA.name, name = "Best", color = I("#00babf")) %>%
+  layout(yaxis=y_axis, xaxis = x_axis, title = "Safety in community areas (2005-2016)")
+
+
+
+
+#Beats
+Beats.worst.safety = base.sample %>%
+  group_by(Beat) %>%
+  filter(Beat != 430) %>%
+  add_tally(CHI, name = "sum.CHI") %>%
+  filter(row_number(Community_Area) == 1) %>%
+  select(Community_Area, Beat, sum.CHI)
+
+lambda=1/median(Beats.worst.safety$sum.CHI)
+
+Beats.worst.safety<-Beats.worst.safety %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(Beats.worst.safety)
+
+best.beats = tail(Beats.worst.safety[order(Beats.worst.safety$safety), ], 5)
+worst.beats = head(Beats.worst.safety[order(Beats.worst.safety$safety), ], 5)
+
+best.beats$Beat = factor(best.beats$Beat, levels = unique(best.beats$Beat)[order(best.beats$safety)])
+worst.beats$Beat = factor(worst.beats$Beat, levels = unique(worst.beats$Beat)[order(worst.beats$safety)])
+
+
+names = c()
+i = 1
+for(num in best.beats$Community_Area) {
+  names[i] = chicago_se_index[chicago_se_index$CA.number == num, ]$CA.name
+  i = i+1
+}
+best.beats$CA.name = names
+
+names = c()
+i = 1
+for(num in worst.beats$Community_Area) {
+  names[i] = chicago_se_index[chicago_se_index$CA.number == num, ]$CA.name
+  i = i+1
+}
+worst.beats$CA.name = names
+
+View(best.beats)
+View(worst.beats)
+
+
+
+#PLOT
+x_axis = list(
+  title = "Safety",
+  type = "linear"
+)
+
+y_axis = list(
+  title = "Beat"
+  #type = "linear"
+)
+
+plot_ly(worst.beats, x = ~safety, y = ~Beat, name = "Worst", color = I("#ff0027"), text = ~CA.name, textposition = "outside", type = "bar", orientation = "h") %>%
+  add_trace(x = best.beats$safety, y = best.beats$Beat, name = "best", color = I("#00babf"), text = best.beats$CA.name, textposition = "outside") %>%
+  layout(yaxis=y_axis, xaxis = x_axis, title = "Most and less safe beats between 2005 and 2016")
+
+
+#Pior/Melhor Beat/CA para o intervalo de anos 2005/2016 em termos de safety (evolução por hora)---------------------------------
+#Melhor Beat -> 1652
+#Pior Beat -> 421
+#Melhor CA -> Edison Park - 9
+#Pior CA -> Austin - 25
+
+best = best.CA[best.CA$safety == max(best.CA$safety), ]
+
+best.CA.perhour = base.sample %>%
+  select(Community_Area, CHI, Date_converted, Year) %>%
+  filter(Community_Area == best$Community_Area) %>%
+  #filter(Year == 2016) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(best.CA.perhour)[1] = "hour"
+
+lambda=1/median(best.CA.perhour$sum.CHI)
+
+best.CA.perhour<-best.CA.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(best.CA.perhour)
+
+
+worst = worst.CA[worst.CA$safety == min(worst.CA$safety), ]
+worst.CA.perhour = base.sample %>%
+  select(Community_Area, CHI, Date_converted, Year) %>%
+  filter(Community_Area == worst$Community_Area) %>%
+  #filter(Year == 2016) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(worst.CA.perhour)[1] = "hour"
+
+
+lambda=1/median(worst.CA.perhour$sum.CHI)
+
+worst.CA.perhour<-worst.CA.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(worst.CA.perhour)
+
+
+#Melhor e pior CA para o intervalo 2005-2016
+plot_ly(best.CA.perhour, x = ~hour, y = ~safety, name = "Edison Park (best)", type = "scatter", mode = "lines", fill = "tozeroy") %>%
+  add_trace(x = worst.CA.perhour$hour, y = worst.CA.perhour$safety, name = "Austin (worst)", fill = "tozeroy") %>%
+  layout(xaxis = list(title = "Daily hours (24h format)"), yaxis = list(title = "Safety"), title = "Mean safety per hour between 2005 and 2016")
+
+
+#Melhor/pior ano da melhor/pior CA em termos de safety--------------------------------------------------------------------
+best = best.CA[best.CA$safety == max(best.CA$safety), ]
+safety.year = base.sample %>%
+  filter(Year != 2017 & Community_Area == best$Community_Area) %>%
+  group_by(Year) %>%
+  tally(CHI, name = "sum.CHI")
+
+lambda=1/median(safety.year$sum.CHI)
+
+safety.year<-safety.year %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(safety.year)
+
+
+best.year = safety.year[safety.year$safety == max(safety.year$safety), ]
+worst.year = safety.year[safety.year$safety == min(safety.year$safety), ]
+
+#Best CA Best Year
+best.CA.best.year = base.sample %>%
+  filter(Year == best.year$Year) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(best.CA.best.year)[1] = "hour"
+
+lambda=1/median(best.CA.best.year$sum.CHI)
+
+best.CA.best.year<-best.CA.best.year %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(best.CA.best.year)
+
+#Best CA Worst Year
+best.CA.worst.year = base.sample %>%
+  filter(Year == worst.year$Year) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(best.CA.worst.year)[1] = "hour"
+
+lambda=1/median(best.CA.worst.year$sum.CHI)
+
+best.CA.worst.year<-best.CA.worst.year %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(best.CA.worst.year)
+
+
+#Worst CA
+worst = worst.CA[worst.CA$safety == max(worst.CA$safety), ]
+safety.year = base.sample %>%
+  filter(Year != 2017 & Community_Area == worst$Community_Area) %>%
+  group_by(Year) %>%
+  tally(CHI, name = "sum.CHI")
+
+lambda=1/median(safety.year$sum.CHI)
+
+safety.year<-safety.year %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(safety.year)
+
+
+best.year = safety.year[safety.year$safety == max(safety.year$safety), ]
+worst.year = safety.year[safety.year$safety == min(safety.year$safety), ]
+
+#Worst CA Best Year
+worst.CA.best.year = base.sample %>%
+  filter(Year == best.year$Year) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(worst.CA.best.year)[1] = "hour"
+
+lambda=1/median(worst.CA.best.year$sum.CHI)
+
+worst.CA.best.year<-worst.CA.best.year %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(worst.CA.best.year)
+
+#Worst CA Worst Year
+worst.CA.worst.year = base.sample %>%
+  filter(Year == worst.year$Year) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(worst.CA.worst.year)[1] = "hour"
+
+lambda=1/median(worst.CA.worst.year$sum.CHI)
+
+worst.CA.worst.year<-worst.CA.worst.year %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(worst.CA.worst.year)
+
+
+#plot comparing Best CA
+plot_ly(best.CA.perhour, x = ~hour, y = ~safety, name = "2005-2016 Interval", type = "scatter", mode = "lines", fill = "tozeroy") %>%
+  add_trace(x = best.CA.best.year$hour, y = best.CA.best.year$safety, name = "Safest Year", fill = "tozeroy") %>%
+  add_trace(x = best.CA.worst.year$hour, y = best.CA.worst.year$safety, name = "Worst Year", fill = "tozeroy") %>%
+  layout(xaxis = list(title = "Daily hours (24h format)"), yaxis = list(title = "Safety"), title = "Edison park safety in depth")
+
+
+
+
+#Comparação da pior Beat com a média das beats em termos de safety para datas importantes para o intervalo 2005/2016--------------
+#Podemos comparar isto com a média geral de todos os dias também
+
+#DATA IMPORTANTES -> NEW YEAR'S DAY e INDEPENDENCE DAY
+View(important_dates)
+important_dates.base = important_dates %>%
+  filter(Year != 2001 & Year != 2002 & Year != 2003 & Year != 2004) %>%
+  filter(Holiday == "New Year's Day" | Holiday == "Independence Day")
+View(important_dates.base)
+
+#Média total da safety para estes feriados
+important_dates.safety.perhour = important_dates.base %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(important_dates.safety.perhour)[1] = "hour"
+
+lambda=1/median(important_dates.safety.perhour$sum.CHI)
+
+important_dates.safety.perhour<-important_dates.safety.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(important_dates.safety.perhour)
+
+
+
+important_dates.safety = important_dates.base %>%
+  group_by(Beat, Holiday) %>%
+  tally(CHI, name = "sum.CHI")
+
+lambda=1/median(important_dates.safety$sum.CHI)
+
+important_dates.safety<-important_dates.safety %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(important_dates.safety)
+
+
+worst.beat.newyear = important_dates.safety %>%
+  filter(Holiday == "New Year's Day") %>%
+  filter(safety == min(worst.beat.newyear$safety))
+View(worst.beat.newyear)
+
+worst.beat.independence = important_dates.safety %>%
+  filter(Holiday == "Independence Day") %>%
+  filter(safety == min(worst.beat.independence$safety))
+View(worst.beat.independence)
+
+
+#Worst beat per your in the new year day (2005-2016)
+worst.newyear.perhour = important_dates.base %>%
+  filter(Beat == worst.beat.newyear$Beat & Holiday == worst.beat.newyear$Holiday) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(worst.newyear.perhour)[1] = "hour"
+
+lambda=1/median(worst.newyear.perhour$sum.CHI)
+
+worst.newyear.perhour<-worst.newyear.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(worst.newyear.perhour)
+
+#Worst beat per hour in the independence day (2005-2016)
+worst.independence.perhour = important_dates.base %>%
+  filter(Beat == worst.beat.independence$Beat & Holiday == worst.beat.independence$Holiday) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(worst.independence.perhour)[1] = "hour"
+
+lambda=1/median(worst.independence.perhour$sum.CHI)
+
+worst.independence.perhour<-worst.independence.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(worst.independence.perhour)
+
+
+#Pior Beat em dois feriados com a média das beats
+plot_ly(important_dates.safety.perhour, x = ~hour, y = ~safety, type = 'scatter', mode = 'lines', name = 'Mean for both holidays (all beats)', fill = 'tozeroy') %>%
+  add_trace(x = worst.newyear.perhour$hour, y = worst.newyear.perhour$safety, name = paste(c("New Year's Eve (beat", worst.beat.newyear$Beat, ")"), collapse = " "), fill = "tozeroy") %>%
+  add_trace(x = worst.independence.perhour$hour, y = worst.independence.perhour$safety, name = paste(c("Independence Day (beat", worst.beat.independence$Beat, ")"), collapse = " "), fill = "tozeroy") %>%
+  layout(xaxis = list(title = "Daily hour (24h format)"), yaxis = list(title = "Safety"), title = "Safety in the worst beats for important holidays (2005-2016)")
+
+
+
+#Safety por hora de todos os dias (nao so os feriados)
+safety.perhour = complete_sample %>%
+  filter(Year != 2001 & Year != 2002 & Year != 2003 & Year != 2004) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI") %>%
+  mutate(chi.avg = sum.CHI / n_beats)
+colnames(safety.perhour)[1] = "hour"
+
+lambda=1/median(safety.perhour$sum.CHI)
+
+safety.perhour<-safety.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(safety.perhour)
+
+
+#plot comparacao ano novo e 4th of july com média de safety por hora de todos os dias do intervalo 2005-2016
+plot_ly(safety.perhour, x = ~hour, y = ~safety, type = 'scatter', mode = 'lines', name = 'Mean daily safety (all beats)', fill = 'tozeroy') %>%
+  add_trace(x = worst.newyear.perhour$hour, y = worst.newyear.perhour$safety, name = paste(c("New Year's Eve (beat", worst.beat.newyear$Beat, ")"), collapse = " "), fill = "tozeroy") %>%
+  add_trace(x = worst.independence.perhour$hour, y = worst.independence.perhour$safety, name = paste(c("Independence Day (beat", worst.beat.independence$Beat, ")"), collapse = " "), fill = "tozeroy") %>%
+  layout(xaxis = list(title = "Daily hour (24h format)"), yaxis = list(title = "Safety"), title = "Safety in the worst beats for important holidays (2005-2016)")
+
+
+
+
+
+#comparar a safety media de todos os beats para os feriados com a média normal
+plot_ly(safety.perhour, x = ~hour, y = ~safety, type = 'scatter', mode = 'lines', name = 'Every day', fill = 'tozeroy') %>%
+  add_trace(x = important_dates.safety.perhour$hour, y = important_dates.safety.perhour$safety, name = 'Holidays (04/07 and 01/01)', fill = 'tozeroy') %>%
+  layout(xaxis = list(title = "Daily hour (24h format)"), yaxis = list(title = "Safety"), title = "Mean safety for every beat")
+
+
+
+
+
+
+
+#worst and best beats (safety)
+worst.beat = worst.beats[worst.beats$safety == min(worst.beats$safety), ]
+best.beat = best.beats[best.beats$safety == max(best.beats$safety), ]
+
+best.beat.perhour = base.sample %>%
+  filter(Beat == best.beat$Beat) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(best.beat.perhour)[1] = "hour"
+
+lambda=1/median(best.beat.perhour$sum.CHI)
+
+best.beat.perhour<-best.beat.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(best.beat.perhour)
+
+
+worst.beat.perhour = base.sample %>%
+  filter(Beat == worst.beat$Beat) %>%
+  group_by(hour(Date_converted)) %>%
+  tally(CHI, name = "sum.CHI")
+colnames(worst.beat.perhour)[1] = "hour"
+
+lambda=1/median(worst.beat.perhour$sum.CHI)
+
+worst.beat.perhour<-worst.beat.perhour %>%
+  #mutate( n=-n/CHIT+1)
+  mutate(safety=1000*exp(-sum.CHI*lambda))
+View(worst.beat.perhour)
+
+
+n_beats = length(unique(base.sample$Beat)) #303 beats
+
+chi.average = safety.perhour %>%
+  mutate(chi.avg = sum.CHI / n_beats)
+
+View(chi.average)
+
+
+
+plot_ly(safety.perhour, x = ~hour, y = ~chi.avg, type = 'scatter', mode = 'lines', name = 'daily average (all beats)', fill = 'tozeroy') %>%
+  add_trace(x = best.beat.perhour$hour, y = best.beat.perhour$sum.CHI, name = "best beat (1652)", fill = "tozeroy") %>%
+  add_trace(x = worst.beat.perhour$hour, y = worst.beat.perhour$sum.CHI, name = "worst beat (421)", fill = "tozeroy") %>%
+  layout(xaxis = list(title = "Daily hours (24h format)"), yaxis = list(title = "Safety"), title = "Average CHI for the best and worst beats")
+
+
+b
+
+
+
 
 #Mapa de community_areas (Area de testes)--------------
 #ESTUDO DE COMMUNITY AREAS

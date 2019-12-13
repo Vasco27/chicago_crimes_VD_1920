@@ -2,16 +2,18 @@
 
 libraries <- function() {
   require(data.table) #fread / apply
-  library(rstudioapi)
+  library(rstudioapi) #get current path
   library(tidyverse) #readr / dplyr / ggplot2
-  library(ChicagoHelper) #custom library
+  #library(ChicagoHelper) #custom library
   library(shiny) #interactive pages
   library(leaflet) #interactive maps
-  library(rgdal) #Spatial line maps
+  library(rgdal) #Spatial line maps (shapefiles)
   library(RColorBrewer) #Palletes de cores
   library(htmlwidgets)
   library(htmltools) #Para usar elementos html
   library(stringi) #Regex
+  library(lubridate) #datetime manipulation
+  library(plotly) #graficos
 }
 read_files <- function() {
   
@@ -226,6 +228,176 @@ sample_pop = merge(x = complete_sample, y = chicago_se_index, by.x = "Community_
 sample_pop = sample_pop[complete.cases(sample_pop[, "Community_Area"]), ]
 View(head(sample_pop))
 
+
+#Exploração de uma só beat------------------
+
+#Safety function
+#CHI stands for Crime Harm Index
+
+complete_sample<-complete_sample %>%
+  mutate(  
+    CHI=case_when(Primary_Type == "ARSON" ~ 33,
+                  Primary_Type == "ASSAULT" ~ 1,
+                  Primary_Type == "BATTERY" ~ 0.5,
+                  Primary_Type == "BURGLARY" ~ 20,
+                  Primary_Type == "CONCEALED CARRY LICENSE VIOLATION" ~ 1,
+                  Primary_Type == "CRIM SEXUAL ASSAULT" ~ 800,
+                  Primary_Type == "CRIMINAL DAMAGE" ~ 2,
+                  Primary_Type == "CRIMINAL TRESPASS" ~ 1,
+                  Primary_Type == "DECEPTIVE PRACTICE" ~ 5,
+                  Primary_Type == "GAMBLING" ~ 1,
+                  Primary_Type == "HOMICIDE" ~ 5475,
+                  Primary_Type == "INTERFERENCE WITH PUBLIC OFFICER" ~ 10,
+                  Primary_Type == "INTIMIDATION" ~ 50,
+                  Primary_Type == "KIDNAPPING" ~ 2000,
+                  Primary_Type == "LIQUOR LAW VIOLATION" ~ 1,
+                  Primary_Type == "MOTOR VEHICLE THEFT" ~ 20,
+                  Primary_Type == "NARCOTICS" ~ 0.2,
+                  Primary_Type == "OBSCENITY" ~ 1,
+                  Primary_Type == "OFFENSE INVOLVING CHILDREN" ~ 100,
+                  Primary_Type == "OTHER OFFENSE" ~ 0,
+                  Primary_Type == "PROSTITUTION" ~ 0,
+                  Primary_Type == "PUBLIC PEACE VIOLATION" ~ 1,
+                  Primary_Type == "ROBBERY" ~ 365,
+                  Primary_Type == "SEX OFFENSE" ~ 30,
+                  Primary_Type == "STALKING" ~ 5,
+                  Primary_Type == "THEFT" ~ 10,
+                  Primary_Type == "WEAPONS VIOLATION" ~ 10,
+    )
+    
+  )
+
+#Conversão de datas
+complete_sample$Date_converted = parse_date_time(complete_sample$Date, orders = "mdy HMS p")
+complete_sample$Date = trimws(format(strptime(complete_sample$Date, format = "%m/%d/%Y %I:%M:%S %p"), format = "%d-%m-%Y %H:%M:%S %p"))
+
+View(head(complete_sample))
+
+#Filtrar por feriados em Chicago
+important_dates = complete_sample %>%
+  select(Primary_Type, Beat, Community_Area, CHI, Date_converted) %>%
+  filter( 
+           ((day(Date_converted) == 1 | day(Date_converted) == 18) & month(Date_converted) == 1 & year(Date_converted) == 2016) | 
+           ((day(Date_converted) == 12 | day(Date_converted) == 15) & month(Date_converted) == 2 & year(Date_converted) == 2016) |
+           (day(Date_converted) == 7 & month(Date_converted) == 3 & year(Date_converted) == 2016) |
+           (day(Date_converted) == 30 & month(Date_converted) == 5 & year(Date_converted) == 2016) |
+           (day(Date_converted) == 4 & month(Date_converted) == 7 & year(Date_converted) == 2016) |
+           (day(Date_converted) == 5 & month(Date_converted) == 9 & year(Date_converted) == 2016) |
+           (day(Date_converted) == 10 & month(Date_converted) == 10 & year(Date_converted) == 2016) |
+           ((day(Date_converted) == 8 | day(Date_converted) == 11 | day(Date_converted) == 24) & month(Date_converted) == 11 & year(Date_converted) == 2016) |
+           ((day(Date_converted) == 24 | day(Date_converted) == 25) & month(Date_converted) == 12 & year(Date_converted) == 2016)
+         ) %>%
+  group_by(Community_Area)
+
+View(important_dates)
+
+#Safety e nº de crimes de cada CA
+CHI_per_CA = important_dates %>%
+  summarise(
+    CHI = sum(CHI),
+    n = n()
+    )
+
+View(CHI_per_CA)
+
+#Filtrar por community areas mais perigosas
+CHI_per_CA[CHI_per_CA$CHI == max(CHI_per_CA$CHI), ] #CA com maior CHI (menos safety) (43)
+CHI_per_CA[CHI_per_CA$n == max(CHI_per_CA$n), ] #CA com maior nº de crimes (25)
+
+important_dates = important_dates %>%
+  filter(Community_Area == 25 | Community_Area == 43) 
+
+View(important_dates)
+
+
+
+#Nomes dos feriados de acordo com os dias e os meses
+holidays = c()
+i = 1
+for (date in important_dates$Date_converted) {
+  date = as.POSIXct(date, origin="1970-01-01")
+  month = month(date)
+  day = day(date)
+
+  if(month == 1) {
+    if(day == 1) {
+      holidays[i] = "New Year's Day"
+    } else {
+      holidays[i] = "Martin Luther King Jr. Day"
+    }
+  } else if(month == 2) {
+    if(day == 12) {
+      holidays[i] = "Lincoln's Birthday"
+    } else {
+      holidays[i] = "Washington's Birthday"
+    }
+  } else if(month == 3) {
+    holidays[i] = "Casimir Pulaski Day"
+  } else if(month == 5) {
+    holidays[i] = "Memorial Day"
+  } else if(month == 7) {
+    holidays[i] = "Independence Day"
+  } else if(month == 9) {
+    holidays[i] = "Labor Day"
+  } else if(month == 10) {
+    holidays[i] = "Columbus Day"
+  } else if(month == 11) {
+    if(day == 8) {
+      holidays[i] = "Election Day (US)"
+    } else if(day == 11) {
+      holidays[i] = "Veterans Day"
+    } else {
+      holidays[i] = "Thanksgiving"
+    }
+  } else if(month == 12) {
+    if(day == 24) {
+      holidays[i] = "Christmas Eve"
+    } else {
+      holidays[i] = "Christmas Day"
+    }
+  } else {
+    holidays[i] = "unnamed holiday"
+  }
+  i = i+1
+}
+
+important_dates$Holiday = holidays
+View(important_dates)
+
+#Pior CA em termos de safety
+worst_safety = important_dates %>%
+  filter(Community_Area == CHI_per_CA[CHI_per_CA$CHI == max(CHI_per_CA$CHI), ]$Community_Area)
+View(worst_safety)
+
+
+#Plot sobre os feriados
+#configuração dos eixos
+x_axis = list(
+  title = "Hour (24h format)",
+  showgrid = FALSE
+)
+
+y_axis = list(
+  title = "Crime Harm Index (CHI)",
+  #range = c(0,500),
+  showgrid = FALSE
+)
+
+plot_ly(worst_safety, x = ~hour(worst_safety$Date_converted[Holiday == "Memorial Day"]), y = ~worst_safety$CHI[Holiday == "Memorial Day"], name = "Memorial Day", type = 'scatter', mode = 'none', stackgroup = 'one', fillcolor = '#F5FF8D') %>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Martin Luther King Jr. Day"]),y = ~worst_safety$CHI[Holiday == "Martin Luther King Jr. Day"], name = "Martin Luther King Jr. Day", fillcolor = "#4C74C9")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Lincoln's Birthday"]),y = ~worst_safety$CHI[Holiday == "Lincoln's Birthday"], name = "Lincoln's Birthday", fillcolor = "#700961")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Washington's Birthday"]),y = ~worst_safety$CHI[Holiday == "Washington's Birthday"], name = "Washington's Birthday", fillcolor = "#312F44")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Casimir Pulaski Day"]),y = ~worst_safety$CHI[Holiday == "Casimir Pulaski Day"], name = "Casimir Pulaski Day", fillcolor = "#151531")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Independence Day"]),y = ~worst_safety$CHI[Holiday == "Independence Day"], name = "Independence Day", fillcolor = "#421a92")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Labor Day"]),y = ~worst_safety$CHI[Holiday == "Labor Day"], name = "Labor Day", fillcolor = "#404be3")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Columbus Day"]),y = ~worst_safety$CHI[Holiday == "Columbus Day"], name = "Columbus Day", fillcolor = "#50CB86")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Election Day (US)"]),y = ~worst_safety$CHI[Holiday == "Election Day (US)"], name = "Election Day (US)", fillcolor = "#39beff")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Veterans Day"]),y = ~worst_safety$CHI[Holiday == "Veterans Day"], name = "Veterans Day", fillcolor = "#c051ff")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Thanksgiving"]),y = ~worst_safety$CHI[Holiday == "Thanksgiving"], name = "Thanksgiving", fillcolor = "#ec6b1a")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Christmas Eve"]),y = ~worst_safety$CHI[Holiday == "Christmas Eve"], name = "Christmas Eve", fillcolor = "#f6cd4d")%>%
+  add_trace(x = ~hour(worst_safety$Date_converted[Holiday == "Christmas Day"]),y = ~worst_safety$CHI[Holiday == "Christmas Day"], name = "Christmas Day", fillcolor = "#51395e") %>%
+  
+  layout(xaxis = x_axis, yaxis = y_axis, title = "CHI per hour in different holidays in 2016 for the South Shore Community Area")
 
 #Mapa de community_areas (Area de testes)--------------
 #ESTUDO DE COMMUNITY AREAS

@@ -13,6 +13,7 @@ libraries <- function() {
   library(htmltools) #Para usar elementos html
   library(stringi)
   library(lubridate)
+  library(readxl)
 }
 read_files <- function() {
   
@@ -202,10 +203,10 @@ cols_to_rm = c(1:2, 4:5, 12:13, 15:17, 19, 22)
 return_list = get_complete_sample(files.read = TRUE, cols.rm = cols_to_rm, na.rm = TRUE)
 
 complete_sample = return_list$complete_sample
-nrow(complete_sample)
+
 rm(return_list)
 complete_sample$Date = format(strptime(complete_sample$Date, format = "%m/%d/%Y %I:%M:%S %p"), format = "%d/%m/%Y %H:%M:%S %p")
-library(lubridate)
+
 complete_sample$Date = (dmy_hms(complete_sample$Date))
 
 #indice socioeconomico de chicago
@@ -314,13 +315,15 @@ length(b.areas$beat_num)
 
 #CHI stands for Crime Harm Index
 
-
+#----------doodling around - please ignore ---------
 descript<-complete_sample %>% 
    group_by(Primary_Type, Description)  %>% 
         summarise(n = n()) #%>% mutate(freq = prop.table(n))
 
 nuno<-complete_sample %>%
         filter(Primary_Type=="HOMICIDE") 
+
+#----------CRIME HARM INDEX ---------
         
 complete_sample<-complete_sample %>%
                        mutate(CHI=case_when(Description == "BY EXPLOSIVE" ~ 730,
@@ -377,20 +380,16 @@ complete_sample<-complete_sample %>%
                          )
 
 
-beats_2016 = complete_sample %>%
-  #group_by(Beat) %>%
-  filter(Year==2016 ) #%>%
-  #tally(name = "crime_count")
 
-CHIT<-sum(beats_2016$CHI)    #THIS IS THE TOTAL CHI FOR THE SUB-SAMPLE
 
 
 #------------------------------------------------SAFETY FUNCTION-----------------------------------------------
 
 
-safe<-beats_2016 %>%
-     group_by(Community_Area) %>%
-          tally(CHI)  
+safe<-complete_sample %>%
+       filter(Year==2016) %>%
+              group_by(Community_Area) %>%
+                 tally(CHI)  
 
 sum(beats_2016$CHI)
 sum(safe$n)
@@ -403,8 +402,17 @@ sum(safe$n)
 lambda=1/median(safe$n)
   
 safe<-safe %>%
-     #mutate( n=-n/CHIT+1)
-      mutate( safety=1000*exp(-n*lambda))
+      mutate( safety1=(-n*mean(n))/(10.75*sum(n))+1000)
+      #mutate( safety=1000*exp(-n*lambda))
+      #mutate(  safety2=sum(n)/(3.7*n))
+annot<-data.frame(text=c("Exponential Decay","Hyperbolic Function","Linear Function"),x=c(400,800,120),y=c(0.002,0.005,0.01))     
+ggplot(data=safe) + 
+  geom_density(aes(safety),size=0.001,kernel="gaussian", alpha=0.8,fill="#943126") + xlim(0,1000) + 
+  geom_density(aes(safety1),kernel="gaussian", alpha=0.3,fill="#6C3483") + 
+  geom_density(aes(safety2),kernel="gaussian", alpha=0.3,fill="#0E6655") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor=element_blank(),panel.border = element_blank()) +
+  geom_text(data=annot,aes(x=x,y=y,label=text),size=7) +
+  ggtitle("Comparison of CHI Transformations - Data Spreading")
 
 
 
@@ -463,9 +471,6 @@ leaflet(c.areas) %>%
 #-----------------------DAYS OF 2016----------------------------------------------------------------
 
 
-
-library(lubridate)
-
 beats_2016$Date1 <- as.Date(beats_2016$Date)
 daily<-aggregate(beats_2016$CHI, by=list(beats_2016$Date1), sum)
 
@@ -487,6 +492,8 @@ daily<-daily %>%
 ggplot(data=daily,aes(safety,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(0,1000)
 
 #-------------------------------------POLAR PLOT---------------------------------------------------------
+#not relevant anymore
+
 radar2016<-beats_2016 %>%
    group_by(month(Date)) %>%
        tally(CHI)
@@ -521,78 +528,92 @@ p + geom_bar(stat="identity") +
 #---------------------------------SAFETY CIRCLE-------------------------------------------------------------------------
 
 
-beats_2012 <-complete_sample %>%
-  #group_by(Beat) %>%
-  filter(Year==2012 ) #%>%
+beats_2013 <-complete_sample %>%
+  filter(Year==2013 )
+beats_2014 <-complete_sample %>%
+  filter(Year==2014 )
+beats_2015 <-complete_sample %>%
+  filter(Year==2015 )
 
-
-sum(beats_2013$CHI)
-
-
-
-beats_2013$Date<-(dmy_hms(beats_2013$Date))
-beats_2014$Date<-(dmy_hms(beats_2014$Date))
-beats_2015$Date<-(dmy_hms(beats_2015$Date))
-
-mama<-beats_2013 %>%
+m1<-beats_2013 %>%
       group_by(month=floor_date(Date,"1 day")) %>%
              tally(CHI)
 
-mama3<-beats_2015 %>%
+m2<-beats_2014 %>%
       group_by(month=floor_date(Date,"1 day")) %>%
             tally(CHI)
 
-
-lambda=1/median(mama3$n)
-
-mama3<-mama3 %>%
-  mutate(safety=1000+1000*exp(-n*lambda))
+m3<-beats_2015 %>%
+  group_by(month=floor_date(Date,"1 day")) %>%
+  tally(CHI)
 
 
-ggplot(data=mama,aes(n)) + geom_density(kernel="gaussian")
+lambdam1=1/median(m1$n)
+lambdam2=1/median(m2$n)
+lambdam3=1/median(m3$n)
+
+m1<-m1 %>%
+  mutate(safety=1000+1000*exp(-n*lambdam1))
+m2<-m2 %>%
+  mutate(safety=1000+1000*exp(-n*lambdam2))
+m3<-m3 %>%
+  mutate(safety=1000+1000*exp(-n*lambdam3))
 
 
 
+m1$s2014<-m2$safety
+m1$s2015<-m3$safety
 
-
-
-mama$s2014<-mama2$safety
-mama$s2015<-mama3$safety
-
-mama <- mama %>%
+m1 <- m1 %>%
            mutate(min1=pmin(safety,s2014,s2015))
 
-mama <- mama %>%
+m1 <- m1 %>%
           mutate(max1=pmax(safety,s2014,s2015))
 
-mama <- mama %>%
-          mutate(mean1=(safety+s2014+s2015)/3)
+m1 <- m1 %>%
+          mutate(Safety_level=(safety+s2014+s2015)/3)
 
+day_first<-c(as.numeric(m1$month[1]), as.numeric(m1$month[32]), as.numeric(m1$month[60]),
+             as.numeric(m1$month[91]), as.numeric(m1$month[121]), as.numeric(m1$month[152]),
+             as.numeric(m1$month[182]), as.numeric(m1$month[213]), as.numeric(m1$month[244]),
+             as.numeric(m1$month[274]), as.numeric(m1$month[305]), as.numeric(m1$month[335]))
 
+m1$Safety_level
 
+m1$months<-c("jan","feb","march","apr","may","jun","jul","aug","sep","oct","nov","dec")
 
-library(scales)
-
-p <- ggplot(mama, aes(month, mean1))
-p + geom_pointrange(aes(ymin = min1, ymax = max1,color=mean1),size=1,fatten=1)+
-  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", midpoint=1400,guide = "colourbar", aesthetics = "colour") + 
+p <- ggplot(m1, aes(month, Safety_level))
+p + geom_pointrange(aes(ymin = min1, ymax = max1,color=Safety_level),size=0.72,fatten=1)+
+  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", guide=guide_colourbar(),midpoint=1400, aesthetics = "colour") + 
   expand_limits( y = 0)+
   coord_polar() +
   #theme_dark() +
+  guides(fill = guide_colourbar(title="Safety",label=FALSE, ticks=FALSE)) +
   theme(
     panel.grid.major = element_blank(),
     panel.grid.minor = element_blank(),
     axis.title.x=element_blank(),axis.title.y=element_blank(),
     axis.text.y = element_blank(),axis.ticks.y = element_blank(),
-    panel.background = element_rect(fill = 'white')
-    ) +
-    geom_hline(yintercept=mean(mama$mean1),size=0.3,alpha=0.6,color="dark grey") #+
-    #geom_hline(yintercept=500,size=0.3,alpha=0.6,color="dark grey") +
-    #geom_hline(yintercept=1800,size=0.3,alpha=0.6,color="dark grey")
- 
-  #theme(panel.background = element_blank(),panel.border = element_blank(),
-  #      axis.title.x=element_blank(),axis.title.y=element_blank(),
-  #      axis.text.y = element_blank(),axis.ticks.y = element_blank())
+    panel.background = element_rect(fill = 'white'),
+    panel.border = element_blank(),
+  ) +
+  labs(title = "Safety in Chicago (2013-2015)")+
+  geom_hline(yintercept=mean(m1$Safety_level),size=0.3,alpha=0.6,color="dark grey") +
+  geom_hline(yintercept=1000,size=0.3,alpha=0.6,color="dark grey",linetype="dashed") +
+  annotate("text", x=m1$month[135], y=1.3*mean(m1$Safety_level), label=("daily average"),alpha=0.5,fontface =1) +
+  geom_vline(xintercept=day_first,alpha=0.1) +
+  annotate("text", x=m1$month[325], y=800, label=("zero line"),alpha=0.5,fontface =1) 
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -606,9 +627,11 @@ circle2012 <-small_sample %>%
 lambda_c=1/median(circle2012$n)
 
 circle2012<-circle2012 %>%
-                mutate(safety=1000+1000*exp(-n*lambda_c))
+                mutate(safety=1000*exp(-n*lambda_c))
 
-ggplot(data=circle2012,aes(safety)) + geom_density(kernel="gaussian")
+ggplot(data=circle2012) + 
+  geom_density(aes(safety),kernel="gaussian",fill="red",alpha=0.4) +
+  geom_density(aes(safety1),kernel="gaussian",colour="blue")
 
 p <- ggplot(circle2012, aes(day, safety))
 p + geom_point(aes(color=safety),size=2,fatten=1)+
@@ -694,9 +717,6 @@ ggplot(data=rainy,aes(n)) + geom_density(kernel="gaussian")
 
 #------------------------------------------------------------------------------------------
 
-library(readxl)
-
-
 small_sample <- complete_sample %>%
   group_by(Year, day=floor_date(Date,"1 day"))  %>%
   tally(CHI)
@@ -723,12 +743,11 @@ weather <-read_excel("datasets/Cambridge_Crime_Harm_Index_2.xlsx",sheet="Weather
 small_sample$precipitation<-weather$Precipitation
 small_sample$Snow_Depth<-weather$`Snow Depth`
 small_sample$Snow<-weather$`New Snow`
+small_sample$Temp<-weather$`Maximum`
 
-small_sample<-small_sample %>%
-                       mutate(Snow_Depth2=Snow_Depth/5)
 
 ggplot(small_sample)+
-  #geom_jitter(aes(x=Snow_Depth,y=safety),colour="white")+
+  geom_jitter(aes(x=Snow_Depth,y=safety),colour="white")+
   #geom_jitter(aes(x=precipitation*5,y=Snow_Depth,size=safety,colour=safety,alpha=0.8)) +
   #scale_color_gradient2(low = "red", mid="yellow", high = "dark green", midpoint=500,guide = "colourbar", aesthetics = "colour") +
   #geom_point(aes(x=Snow,y=safety,colour="green")) +
@@ -740,7 +759,7 @@ ggplot(small_sample)+
                  #RAINY SAFETY - MONTHLY
 
 small_sample1 <- small_sample %>% 
-                    filter(month(day)==12) 
+                    filter(month(day)==3) 
 
 small_sample1$precipitation[small_sample1$precipitation>0]=1
 
@@ -788,7 +807,20 @@ small_sample <- small_sample[-c(1:365),]
 lambda_ss=1/median(small_sample$n)
 
 small_sample<-small_sample %>%
-  mutate(safety=2000+1000*exp(-n*lambda_ss))
+  mutate(safety3=1000*exp(-n*lambda_ss))
+
+small_sample<-small_sample %>%
+  mutate(safety1=sum(n)/(2*n))
+
+small_sample<-small_sample %>%
+  mutate(safety2=(-n*mean(n))/sum(n)+1000)
+
+ggplot(data=small_sample) + 
+  geom_density(aes(safety2),kernel="gaussian", alpha=0.3,fill="blue") + xlim(0,1000) + 
+  geom_density(aes(safety1),kernel="gaussian", alpha=0.3,fill="red") + 
+  geom_density(aes(safety3),kernel="gaussian", alpha=0.3,fill="yellow")
+
+max(small_sample$safety1)
 
 small_sample$dayz<-small_sample$day[1:365]
 
@@ -807,7 +839,7 @@ round_sample <- round_sample %>%
   mutate(mean1=(`2005`+`2006`+`2007`+`2008`+`2009`+`2010`+`2011`+`2012`+`2013`+`2014`+`2015`+`2016`)/12)
 
 
-ggplot(data=round_sample,aes(mean1,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(1000,2000)
+
 #ggplot(data=small_sample,aes(n,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(0,80000)
 
 day_first<-c(as.numeric(round_sample$dayz[1]), as.numeric(round_sample$dayz[32]), as.numeric(round_sample$dayz[60]),
@@ -850,7 +882,7 @@ p + geom_pointrange(aes(ymin = min1, ymax = max1,color=mean1),size=0.72,fatten=1
 
 
 oneday <- small_sample %>% 
-  filter(month(day)==12 & day(day)==27) 
+  filter(month(day)==1 & day(day)==1) 
 
 
 
@@ -858,35 +890,239 @@ ggplot(oneday) +
   geom_point(aes(x=day,y=safety)) +
   geom_smooth(aes(x=day,y=safety))
 
+#WEAHTER VERY HOT HEAT WAVE###################################
+###############################################
+#########################################
+
+onemonth3 <- small_sample %>% 
+  filter(Year==2012 & ( month(day)==7))
+
+onemonthm <- small_sample %>% 
+  filter(Year!=2012 & ( month(day)==7))  %>%  
+  group_by(day(day)) %>%
+  summarise(media=mean(safety))
+onemonthm$day<-onemonth3$day
+
+ggplot(onemonth3) +
+  geom_point(aes(x=day,y=safety,colour=Temp),size=2) +
+  geom_smooth(aes(x=day,y=safety),colour="#57C685") +
+  geom_smooth(data=onemonthm,aes(x=day,y=media),colour="black",
+              se=FALSE,linetype="dashed",alpha=0.2) +
+  theme(
+    panel.border=element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = 'white')
+  ) +
+  scale_colour_gradient(low = "#FFC300", high = "#C70039",
+                        space = "Lab", na.value = "grey50", guide = "colourbar",
+                        aesthetics = "colour") +
+  ggtitle("Safety during the 2012 Heat Wave")+xlab("Day")+ylab("Safety") #+
+  #annotate("text", x=onemonth3$day[], 
+         #  y=1.3*mean(round_sample$mean1), label=("daily average"),alpha=0.3,fontface =1)
 
 
-onemonth <- small_sample %>% 
-  filter(Year==2008 & ( month(day)==7))# | month(day)==8))
+
+
+#SNOWMAGGEDON###############################
+
+onemonth<-small_sample %>% 
+  filter(Year==2011 & ( month(day)==2))
+
+
+onemonth1 <- small_sample %>% 
+       filter(Year!=2011 & ( month(day)==2))  %>%  
+          group_by(day(day)) %>%
+            summarise(media=mean(safety))
+onemonth1$day<-onemonth$day
+            
+            
 
 
 ggplot(onemonth) +
-  geom_point(aes(x=day,y=safety)) +
-  geom_smooth(aes(x=day,y=safety))
+  geom_point(aes(x=day,y=safety,size=Snow),alpha=0.5) +
+  geom_smooth(aes(x=day,y=safety),colour="purple") +
+  geom_col(aes(x=day,y=Snow_Depth*40),fill="black",alpha=0.15) +
+  geom_smooth(data=onemonth1,aes(x=day,y=media),colour="black",se=FALSE,linetype="dashed") +
+  theme(
+    panel.border=element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = 'white')
+  ) +
+  scale_colour_gradient(low = "#FFC300", high = "#C70039",
+                        space = "Lab", na.value = "grey50", guide = "colourbar",
+                        aesthetics = "colour") +
+  ggtitle("Safety during the 2011 Snowmaggedon") 
+  #geom_text(aes(Snow_Depth, label = Snow_Depth), color = "white", fontface = "bold", hjust = 1) 
 
 
-
+ggplot(onemonth,aes(Snow_Depth)) +
+  geom_histogram()
 
 
 ggplot(small_sample) +
   geom_point(aes(x=day,y=safety)) +
-  geom_smooth(aes(x=day,y=safety))
+  geom_smooth(aes(x=day,y=safety),colour="#C70039") + xlab("Time")
 
 
-#-------------------------------------------BEATS SAFETY-----------------------------------------------
+ggplot(onemonth) +
+  geom_point(aes(x=day,y=safety,colour=Temp),size=2) +
+  geom_smooth(aes(x=day,y=safety),colour="#57C685") +
+  geom_smooth(data=onemonth1,aes(x=day,y=media),colour="black",
+              se=FALSE,linetype="dashed",alpha=0.2) +
+  theme(
+    panel.border=element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.background = element_rect(fill = 'white')
+  ) +
+  scale_colour_gradient(low = "#FFC300", high = "#C70039",
+                        space = "Lab", na.value = "grey50", guide = "colourbar",
+                        aesthetics = "colour") +
+  ggtitle("Safety during the 2012 Heat Wave")+xlab("Safety")
 
 
-bitz<-beats_2016 %>% 
-    group_by(Beat) %>% 
+#--------------------------COMMUNITY AREAS EVOLUTION------------------------
+
+community<-complete_sample %>%
+       filter(Year %in% c(2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016)) %>%
+           group_by(Year, Community_Area) %>%
+                summarise(sum=sum(CHI))
+
+community<-community[!(community$Community_Area==0),]
+
+lambda_ca=1/median(community$sum)
+
+community<-community %>%
+  mutate(safety=1000*exp(-sum*lambda_ca))
+
+ggplot(community)+geom_smooth(aes(x=Year,y=safety,color=factor(Community_Area)),se=FALSE)
+
+
+
+communityplot <- community %>%
+                filter(Community_Area %in% (1:77))
+
+x<-lm(formula=safety~Year,data=communityplot)
+      x$coefficients[2]       
+
+ggplot(communityplot)+geom_smooth(aes(x=Year,y=safety,color=factor(Community_Area)),se=FALSE)
+
+
+regression<-matrix(ncol=2,nrow=77)
+#regression<-as.data.frame(c(27:34))
+for (i in 1:77) {
+  communityplot1 <- community %>%
+    filter(Community_Area == i)
+      
+      
+  regression[i,2]<-lm(formula=safety~Year,data=communityplot1)$coefficients[2]
+  regression[i,1]<-i
+                 }
+regression<-as.data.frame(regression)
+
+
+#a few community areas' safety has decreased, mostly has increased.
+#some had the largest safety during the post crisis
+#
+
+
+names(regression)<-c("Community_Area","Safety_Change")
+
+
+
+
+aux<-community %>%
+  filter(Year==2016) 
+
+regression$safety2016<-aux$safety
+
+annot<-data.frame(text=c("Low safety regions/Neglected","High safety regions/Neglected","High safety regions/Growing safety","Low safety regions/Growing safety"),
+                  x=c(-40,-40,40,40),y=c(100,850,850,100))
+
+ggplot()+
+  geom_point(data=regression,aes(x=Safety_Change,y=safety2016),size=3,alpha=0.6,colour="#0E6655")+
+  geom_point(data=regression_beat,aes(x=Safety_Change,y=safety2016),size=1.5,colour="#CD5C5C")+
+  geom_vline(xintercept=mean(regression$Safety_Change),colour="#0E6655",linetype="dashed")+
+  geom_hline(yintercept=mean(regression$safety2016),colour="#0E6655",linetype="dashed") +
+  geom_vline(xintercept=mean(regression_beat$Safety_Change),colour="#CD5C5C",linetype="dashed")+
+  geom_hline(yintercept=mean(regression_beat$safety2016),colour="#CD5C5C",linetype="dashed") +
+  theme_grey() + xlab("Safety Points Variation per Year")+
+  ylab("Safety in 2016") +ggtitle("Safety over Time vs. Current Panorama")#+
+  geom_text(data=annot,aes(x=x,y=y,label=text),size=3)
+    
+
+
+
+
+######BEAT EVOLUTIN#################################
+
+#check sparse beats
+beaterzzz<-beater%>%
+        group_by(Beat) %>%
+           summarise(n=n()) %>%
+             filter(n<12)
+
+#remove sparse beats and select years
+beater<-complete_sample %>%
+  filter(Year %in% c(2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016)) %>%
+   filter(!(Beat %in% beaterzzz$Beat)) %>%
+         group_by(Year, Beat) %>%
+           summarise(sum=sum(CHI))
+
+#safety
+
+lambda_beat=1/median(beater$sum)
+
+beater<-beater %>%
+  mutate(safety=1000*exp(-sum*lambda_beat))
+
+
+
+#check evolution for a few beats
+
+ggplot(beatershow)+
+  geom_smooth(aes(x=Year,y=safety,color=factor(Beat)),se=FALSE)
+
+
+#regression values for beats
+regression_beat<-matrix(ncol=2,nrow=253)
+
+for (i in 1:253) {
+  beaterchange <- beater %>%
+    filter(Beat == beater$Beat[i])
+  regression_beat[i,2]<-lm(formula=safety~Year,data=beaterchange)$coefficients[2]
+  regression_beat[i,1]<-i
+}
+regression_beat<-as.data.frame(regression_beat)
+
+names(regression_beat)<-c("Beat","Safety_Change")
+
+aux<-beater%>% 
+    filter(Year==2016)
+
+regression_beat$safety2016<-aux$safety
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+bitz<- complete_sample %>%
+  filter(Year==2014) %>%
+     group_by(Beat) %>%
         tally(CHI)
 
-bitz2<-beats_2016 %>% 
-  group_by(Beat) %>% 
-     tally()
 
 lambda_b=1/median(bitz$n)
 
@@ -894,14 +1130,72 @@ bitz<-bitz %>%
   mutate(safety=1000*exp(-n*lambda_b))
 
 
-ggplot(data=bitz2,aes(x=reorder(Beat,n),y=n,color=n))+geom_col()+
+ggplot(data=bitz,aes(safety,fill="red")) + geom_density(kernel="gaussian", alpha=0.5) + xlim(0,1000)
+
+ggplot(data=bitz,aes(x=reorder(Beat,safety),y=safety,color=safety))+geom_col(aes(width=2),alpha=0.1)+
   scale_x_discrete(labels = NULL) +
-  scale_color_gradient2(low = "red", mid="yellow", high = "dark green", 
-                        midpoint=200,guide = "colourbar", aesthetics = "colour") +
+  scale_color_gradient2(low = "#C70039", mid="#FFC300", high = "dark green", 
+                        midpoint=500,guide = "colourbar", aesthetics = "colour") +
   theme(panel.grid.major = element_blank(),panel.grid.minor = element_blank(),axis.ticks.x = element_blank())+
-  geom_hline(yintercept=365, linetype="dashed", color = "red",size=0.4) +
-  annotate(geom="text", x=50, y=380, label="1 crime per day",color="red",alpha=0.6, fontface="italic") +
-  labs(title = "Crimes per beat", y = "number of crimes / year", x = "beat")#+coord_flip()
+  geom_hline(yintercept=mean(bitz$safety), linetype="dashed", color = "black",size=0.4) +
+  annotate(geom="text", x=50, y=380, label="Average Safety",color="black",alpha=0.6, fontface="italic") +
+  labs(title = "Safety for beats", y = "Safety", x = "Beat") 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -795,7 +795,6 @@ safety.perhour = complete_sample %>%
   filter(Year != 2001 & Year != 2002 & Year != 2003 & Year != 2004) %>%
   group_by(hour(Date_converted)) %>%
   tally(CHI, name = "sum.CHI") %>%
-  mutate(chi.avg = sum.CHI / n_beats)
 colnames(safety.perhour)[1] = "hour"
 
 lambda=1/median(safety.perhour$sum.CHI)
